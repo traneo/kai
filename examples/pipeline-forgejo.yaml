@@ -1,0 +1,80 @@
+version: 1
+project: kai-demo-app
+output:
+  type: pr
+  branch_prefix: feat/kai-app-
+
+repo:
+  url: http://forgejo.example.com/developer/kai-demo.git
+  base_branch: main
+  provider: forgejo
+  token_ref: forgejo-token
+
+steps:
+  - id: scaffold
+    prompt: |
+      Create a Go module and HTTP server. Initialize with:
+        go mod init kai-demo
+      Create main.go with a minimal HTTP server that:
+        - Listens on :8080
+        - Has a GET / endpoint returning "hello from kai"
+        - Has a GET /health endpoint returning {"status":"ok"}
+      Create a basic go.mod and go.sum
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [go mod init *, go mod tidy, go build *, mkdir *]
+      allowed_dirs: [./]
+      max_retries: 2
+      timeout_seconds: 600
+    validation:
+      - exit_zero
+
+  - id: middleware
+    depends_on: [scaffold]
+    prompt: |
+      Add middleware to the HTTP server:
+        - Request logging middleware that logs method, path, and duration
+        - Recovery middleware that catches panics and returns 500
+      Each middleware should be in its own file: middleware/logging.go, middleware/recovery.go
+      Organize the middleware package correctly.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [go build *, go vet *, mkdir *]
+      allowed_dirs: [./]
+      max_retries: 2
+      timeout_seconds: 600
+    validation:
+      - exit_zero
+      - lint
+
+  - id: tests
+    depends_on: [middleware]
+    prompt: |
+      Write tests for the HTTP server:
+        - Test GET / returns 200 with "hello from kai"
+        - Test GET /health returns 200 with {"status":"ok"}
+        - Test middleware/logging.go logs correctly
+        - Test middleware/recovery.go catches panics
+      Tests should be in main_test.go and middleware/middleware_test.go
+      Make sure tests pass with: go test ./...
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [go test *, go vet *, go build *]
+      allowed_dirs: [./]
+      max_retries: 2
+      timeout_seconds: 600
+    validation:
+      - exit_zero
+      - tests
+
+  - id: documentation
+    depends_on: [middleware]
+    prompt: |
+      Write README.md file and technical documentation for the project.
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./]
+      max_retries: 2
+      timeout_seconds: 600
+    validation:
+      - exit_zero

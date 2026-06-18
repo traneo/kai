@@ -1,0 +1,44 @@
+# Build artifacts
+bin/
+obj/
+*.deps.json
+*.dll
+*.exe
+*.pdb
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependencies
+node_modules/
+vendor/
+packages/
+
+# Output
+dist/
+build/
+coverage/
+TestResults/
+*.tsbuildinfo
+
+# Local config and secrets
+.env
+.env.local
+.env.*.local
+kaictl
+kaictl.exe
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Drafts (kept on disk, not published)
+drafts/

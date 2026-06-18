@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\kai\src\kai.Core\kai.Core.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.LLM\kai.LLM.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Git\kai.Git.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Orchestrator\kai.Orchestrator.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Agents\kai.Agents.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Cli\kai.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

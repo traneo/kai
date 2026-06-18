@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
+    <PackageReference Include="System.CommandLine" Version="2.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\kai\src\kai.Core\kai.Core.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.LLM\kai.LLM.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Git\kai.Git.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Orchestrator\kai.Orchestrator.csproj" />
+    <ProjectReference Include="..\..\..\kai\src\kai.Agents\kai.Agents.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,90 @@
+version: 1
+project: MS-1986
+output:
+  type: branch
+  branch_prefix: feat/kai-
+
+steps:
+  - id: scaffold
+    prompt: "Initialize dotnet project with standard layout"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet new *, dotnet build *, mkdir *]
+      allowed_dirs: [./]
+    approval: optional
+
+  - id: domain-models
+    depends_on: [scaffold]
+    prompt: "Define domain models and interfaces"
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./internal]
+      save_state: true
+    approval: optional
+
+  - id: implement-repo
+    depends_on: [domain-models]
+    prompt: "Implement repository layer with PostgreSQL"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet build *, dotnet add *]
+      allowed_dirs:
+        - ./internal/repo
+        - ./internal/models
+      timeout_seconds: 600
+      max_retries: 2
+      retry_delay_seconds: 10
+      retry_backoff: exponential
+    approval: optional
+
+  - id: implement-api
+    depends_on: [domain-models]
+    prompt: "Implement REST API handlers"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet build *, dotnet add *]
+      allowed_dirs:
+        - ./internal/api
+        - ./internal/models
+      timeout_seconds: 600
+      max_retries: 2
+      retry_delay_seconds: 10
+      retry_backoff: exponential
+    approval: optional
+
+  - id: unit-tests
+    depends_on: [implement-repo, implement-api]
+    prompt: "Write unit tests for all packages"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet test *, dotnet build *]
+      allowed_dirs: [./internal]
+      max_retries: 1
+      timeout_seconds: 300
+    validation:
+      - exit_zero
+    approval: optional
+
+  - id: integration-tests
+    depends_on: [unit-tests]
+    prompt: "Write integration tests and run them"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet test *, dotnet build *, dotnet add *]
+      allowed_dirs: [./]
+      max_retries: 3
+      timeout_seconds: 900
+    validation:
+      - exit_zero
+    approval: required
+
+  - id: docs
+    depends_on: [integration-tests, implement-repo, implement-api]
+    prompt: "Generate API documentation and README"
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs:
+        - ./docs
+        - ./
+      max_retries: 1
+    approval: optional

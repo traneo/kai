@@ -1,0 +1,62 @@
+services:
+  config-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.config-service
+    env_file: ../config-service/.env
+    ports:
+      - "8081:8081"
+    volumes:
+      - ../tmp/config-service:/app/tmp/config-service
+
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    env_file: ../orchestrator/.env
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    depends_on:
+      config-service:
+        condition: service_started
+
+  agent-kai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent-kai
+    env_file: ../agent-kai/.env
+    ports:
+      - "50052:50052"
+    depends_on:
+      orchestrator:
+        condition: service_started
+
+  agent-opencode:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent-opencode
+    env_file: ../agent-opencode/.env
+    ports:
+      - "50053:50053"
+    depends_on:
+      orchestrator:
+        condition: service_started
+
+  agent-claude:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent-claude
+    env_file: ../agent-claude/.env
+    ports:
+      - "50054:50054"
+    depends_on:
+      orchestrator:
+        condition: service_started
+
+  ui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ui
+    ports:
+      - "5173:80"

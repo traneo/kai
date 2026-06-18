@@ -1,0 +1,31 @@
+{
+  "language": "",
+  "agents": {
+    "coder": {
+      "endpoint": "http://localhost:11434/v1",
+      "model": "llama3",
+      "provider": "openai-compatible",
+      "temperature": 1.0,
+      "topP": 0.95,
+      "topK": 64
+    },
+    "tester": {
+      "endpoint": "http://localhost:11434/v1",
+      "model": "llama3",
+      "provider": "openai-compatible"
+    },
+    "reviewer": {
+      "endpoint": "http://localhost:11434/v1",
+      "model": "llama3",
+      "provider": "openai-compatible"
+    }
+  },
+  "branchPrefix": "kai/",
+  "autoCommit": true,
+  "autoPush": false,
+  "rules": [
+    "Use file-scoped namespaces",
+    "Prefer primary constructors",
+    "Always add XML doc on public APIs"
+  ]
+}

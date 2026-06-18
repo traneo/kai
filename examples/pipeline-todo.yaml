@@ -1,0 +1,174 @@
+version: 1
+project: angular-todo
+output:
+  type: branch
+  branch_prefix: feat/todo-
+
+steps:
+  - id: scaffold
+    prompt: >
+      Scaffold a new Angular standalone project called "todo-app" using Angular CLI
+      (npx @angular/cli@latest new). Set up the project with routing enabled,
+      standalone components (default), and SCSS for styling. After scaffolding,
+      install Angular Material (npx ng add @angular/material) with a custom theme
+      and include the BrowserAnimationsModule. Configure the project to use
+      provideHttpClient() in app.config.ts for HTTP support.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [npx @angular/*, ng *, mkdir *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 2
+      timeout_seconds: 300
+    approval: optional
+
+  - id: todo-model
+    depends_on: [scaffold]
+    prompt: >
+      Create the Todo domain model and data service in the Angular project.
+
+      1. Generate an interface Todo in src/app/models/todo.ts with fields:
+         id: number, title: string, description: string, completed: boolean,
+         createdAt: Date, updatedAt: Date.
+
+      2. Generate an enum TodoFilter in src/app/models/todo-filter.ts with values:
+         ALL, ACTIVE, COMPLETED.
+
+      3. Generate an injectable TodoService in src/app/services/todo.service.ts
+         that manages an in-memory list of todos (no backend needed).
+         Include methods:
+         - getTodos(filter?: TodoFilter): Observable<Todo[]> — returns filtered list
+         - getTodo(id: number): Observable<Todo | undefined>
+         - addTodo(todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>): Observable<Todo>
+         - updateTodo(todo: Todo): Observable<Todo>
+         - deleteTodo(id: number): Observable<void>
+         - toggleTodo(id: number): Observable<Todo>
+         All methods should simulate async with delay(200) from rxjs.
+
+      4. Use Angular's inject() function (not constructor injection) for consistency
+         with the standalone style. Export a provideTodoServices() function that
+         returns the TodoService as a providedIn: 'root' service.
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./src]
+      save_state: true
+      max_retries: 2
+    approval: optional
+
+  - id: todo-components
+    depends_on: [todo-model]
+    prompt: >
+      Build the Angular components for the todo app. Use Angular Material components.
+
+      1. Generate TodoInputComponent (standalone) in src/app/components/todo-input/:
+         - A form with a mat-form-field for title (required) and description (optional),
+           and a mat-raised-button to add the todo.
+         - Emit an @Output() todoAdd event with the new todo data.
+         - Use reactive forms (FormGroup, Validators).
+
+      2. Generate TodoItemComponent (standalone) in src/app/components/todo-item/:
+         - Display a single todo as a mat-list-item with:
+           - A mat-checkbox to toggle completion status
+           - The title (with strikethrough when completed) and description
+           - A mat-icon button delete button (delete icon)
+           - Inline editing: clicking the title switches to a mat-form-field input,
+             pressing Enter or blur saves via a save event.
+         - Inputs: @Input() todo: Todo
+         - Outputs: @Output() todoToggle, @Output() todoDelete, @Output() todoUpdate
+
+      3. Generate TodoListComponent (standalone) in src/app/components/todo-list/:
+         - Displays TodoInputComponent at the top
+         - Below it, a mat-button-toggle-group for filtering (All, Active, Completed)
+         - A mat-list containing TodoItemComponent for each filtered todo
+         - Display a "No todos" message (with mat-icon 'inbox') when list is empty
+         - Use the TodoService for all data operations
+
+      4. Update app.component.ts to use TodoListComponent, remove the default content.
+         Update app.component.html to just <app-todo-list/>.
+         Clean up any default Angular CLI boilerplate from app.component.
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./src]
+      save_state: true
+      max_retries: 2
+    approval: optional
+
+  - id: styling
+    depends_on: [todo-components]
+    prompt: >
+      Add styling and final polish to the Angular todo app.
+
+      1. In src/styles.scss, import the Angular Material theme properly and add:
+         - A centered container with max-width: 720px and generous padding
+         - A subtle background color for the body
+         - Smooth transitions on todo items (opacity, transform) when they appear
+
+      2. In src/app/components/todo-list/todo-list.component.scss:
+         - Style the header to have a centered title with a clipboard icon
+         - Add spacing between the input, filter toggle, and list
+         - Style the empty state with centered text, large icon, muted color
+         - Add a counter showing "X of Y items completed"
+
+      3. In src/app/components/todo-item/todo-item.component.scss:
+         - Completed items should have a muted, faded appearance
+         - Add hover effect showing the delete button
+         - Style the inline edit input to match the list item
+         - Animate item removal with a fade-out effect
+
+      4. In src/app/components/todo-input/todo-input.component.scss:
+         - Display the form fields side by side on wide screens
+         - Add a subtle box shadow to the input area
+
+      5. Update src/index.html to set a proper title "Todo App" and add a
+         modern sans-serif font stack via Google Fonts (Inter or Roboto).
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./src]
+      save_state: true
+      max_retries: 2
+    approval: optional
+
+  - id: tests
+    depends_on: [styling]
+    prompt: >
+      Write and run unit tests for the Angular todo app.
+
+      1. Write tests for TodoService (todo.service.spec.ts):
+         - Should add a todo and emit it in the list
+         - Should toggle a todo's completed status
+         - Should delete a todo
+         - Should filter todos by ALL, ACTIVE, COMPLETED
+         - Should update a todo's title
+
+      2. Write tests for TodoInputComponent:
+         - Should emit todoAdd with form values on submit
+         - Should not emit if title is empty
+         - Should clear the form after successful add
+
+      3. Write tests for TodoItemComponent:
+         - Should display the todo title and description
+         - Should emit todoToggle when checkbox is clicked
+         - Should emit todoDelete when delete button is clicked
+         - Should switch to edit mode when title is clicked
+
+      4. Write tests for TodoListComponent:
+         - Should display all todos initially
+         - Should filter todos when filter changes
+         - Should show empty state when no todos match
+
+      5. Run the tests with npx ng test --watch=false --browsers=ChromeHeadless
+         and fix any failures. If ChromeHeadless is not available, configure
+         karma to use it or use jsdom.
+
+      Make all tests pass before completing.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [npx ng test *, npx karma *, node *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 3
+      retry_delay_seconds: 15
+      timeout_seconds: 600
+    validation:
+      - exit_zero
+    approval: optional

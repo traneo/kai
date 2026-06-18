@@ -1,0 +1,48 @@
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+vendor/
+orchestrator/web/node_modules/
+
+# React / Vite
+orchestrator/web/dist/
+orchestrator/web/build/
+orchestrator/web/tsconfig.tsbuildinfo
+orchestrator/web/*.tsbuildinfo
+orchestrator/web/coverage/
+orchestrator/web/.vite/
+
+# Env (React/Vite)
+.env.development.local
+.env.production.local
+.env.test.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Proto generated
+gen/

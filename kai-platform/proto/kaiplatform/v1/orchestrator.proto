@@ -1,0 +1,13 @@
+syntax = "proto3";
+package kaiplatform.v1;
+
+option go_package = "kaiplatform.com/gen/kaiplatform/v1;kaipb";
+
+import "kaiplatform/v1/types.proto";
+
+service Orchestrator {
+  rpc Heartbeat(stream HeartbeatRequest) returns (HeartbeatResponse);
+  rpc ReportLog(stream LogEntry) returns (LogAck);
+  rpc ReportFileChange(stream FileChange) returns (Ack);
+  rpc ReportResult(MissionResult) returns (ResultAck);
+}

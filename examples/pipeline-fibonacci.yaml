@@ -1,0 +1,81 @@
+version: 1
+project: fibonacci-10k
+output:
+  type: branch
+  branch_prefix: feat/fib/
+
+steps:
+  - id: csharp
+    prompt: >
+      Create a C# console app that computes and prints the first 10,000 Fibonacci
+      numbers. Create the project with
+      `dotnet new console -n FibCSharp -o fib-csharp --use-program-main`.
+      In Program.cs inside the Program class, implement an efficient iterative
+      Main method using System.Numerics.BigInteger (not long/int which overflow).
+      Print each number on its own line prefixed with the index
+      (e.g. "0: 0", "1: 1", "2: 1", ...). Then create an xUnit test project
+      alongside it: `dotnet new xunit -n FibCSharp.Tests -o fib-csharp-tests`
+      and add a project reference to the console project. Write a test that
+      verifies Fib(0)=0, Fib(1)=1, Fib(10)=55. Run all tests with
+      `dotnet test fib-csharp-tests` and ensure they pass.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [dotnet new *, dotnet test *, dotnet add *, mkdir *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 2
+      timeout_seconds: 600
+    approval: optional
+
+  - id: python
+    depends_on: [csharp]
+    prompt: >
+      Create a Python script that computes and prints the first 10,000 Fibonacci
+      numbers. Write it to fib-python/fib.py. Use Python's arbitrary-precision
+      integers (no special library needed). Implement an efficient iterative
+      solution. Print each number as "index: value" on its own line.
+      Verify it runs with `python3 fib-python/fib.py`. The first few lines
+      should start with 0: 0, 1: 1, 2: 1, 3: 2, 4: 3, 5: 5.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [python3 *, mkdir *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 2
+      timeout_seconds: 300
+    approval: optional
+
+  - id: go
+    depends_on: [python]
+    prompt: >
+      Create a Go program that computes and prints the first 10,000 Fibonacci
+      numbers. Initialize a module with `mkdir -p fib-go && cd fib-go &&
+      go mod init fib`. Write main.go with an iterative solution using
+      math/big.Int (since uint64 overflows at Fibonacci = 93). Print each
+      number as "index: value". Verify it compiles and runs with
+      `go run ./fib-go`. The first few lines must be 0: 0, 1: 1, 2: 1, 3: 2.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [go *, mkdir *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 2
+      timeout_seconds: 300
+    approval: optional
+
+  - id: javascript
+    depends_on: [go]
+    prompt: >
+      Create a Node.js script that computes and prints the first 10,000 Fibonacci
+      numbers. Write it to fib-js/fib.js. Use JavaScript's BigInt type (n suffix)
+      to handle the large numbers. Implement an efficient iterative solution.
+      Print each number as "index: value". Verify it runs with
+      `node fib-js/fib.js`. The first lines must be 0: 0, 1: 1, 2: 1, 3: 2.
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [node *, mkdir *]
+      allowed_dirs: [./]
+      save_state: true
+      max_retries: 2
+      timeout_seconds: 300
+    approval: optional

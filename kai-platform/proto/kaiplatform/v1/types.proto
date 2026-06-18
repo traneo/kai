@@ -1,0 +1,114 @@
+syntax = "proto3";
+package kaiplatform.v1;
+
+option go_package = "kaiplatform.com/gen/kaiplatform/v1;kaipb";
+
+message Mission {
+  string id = 1;
+  string prompt = 2;
+  Policy policy = 3;
+  Workspace workspace = 4;
+  map<string, string> env = 5;
+  reserved 6, 7;  // removed agent_config, kai_config
+  string config_blob = 8;
+}
+
+message Policy {
+  repeated string allowed_dirs = 1;
+  repeated string allowed_tools = 2;
+  repeated string allowed_commands = 3;
+  string runner = 4;  // "kai", "opencode", etc.
+  int32 max_retries = 5;
+  int32 timeout_seconds = 6;
+  bool save_state = 7;
+}
+
+message Workspace {
+  string repo_url = 1;
+  string branch = 2;
+  string commit_hash = 3;
+}
+
+message LogEntry {
+  string mission_id = 1;
+  int64 sequence = 2;
+  int64 timestamp = 3;
+  LogLevel level = 4;
+  string source = 5;
+  string message = 6;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_INFO = 1;
+  LOG_LEVEL_WARN = 2;
+  LOG_LEVEL_ERROR = 3;
+  LOG_LEVEL_DEBUG = 4;
+}
+
+message FileChange {
+  string mission_id = 1;
+  int64 timestamp = 2;
+  string path = 3;
+  FileChangeType type = 4;
+  bytes content = 5;
+}
+
+enum FileChangeType {
+  FILE_CHANGE_TYPE_UNSPECIFIED = 0;
+  FILE_CHANGE_TYPE_CREATED = 1;
+  FILE_CHANGE_TYPE_MODIFIED = 2;
+  FILE_CHANGE_TYPE_DELETED = 3;
+}
+
+message MissionResult {
+  string mission_id = 1;
+  bool success = 2;
+  int32 exit_code = 3;
+  string summary = 4;
+  int64 token_usage_prompt = 5;
+  int64 token_usage_completion = 6;
+  int64 duration_ms = 7;
+  bytes state_archive = 8;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  string mission_id = 2;
+  MissionStatus mission_status = 3;
+  string agent_addr = 4;
+}
+
+enum MissionStatus {
+  MISSION_STATUS_UNSPECIFIED = 0;
+  MISSION_STATUS_RUNNING = 1;
+  MISSION_STATUS_COMPLETED = 2;
+  MISSION_STATUS_FAILED = 3;
+}
+
+message HeartbeatResponse {
+  bool cancel_requested = 1;
+  string cancel_reason = 2;
+}
+
+message MissionEvent {
+  oneof event {
+    LogEntry log = 1;
+    FileChange file_change = 2;
+  }
+}
+
+message LogAck {}
+message ResultAck {}
+message Ack {}
+message Empty {}
+
+message MissionID {
+  string id = 1;
+}
+
+message HealthStatus {
+  bool healthy = 1;
+  int64 uptime_ms = 2;
+  int32 missions_completed = 3;
+}

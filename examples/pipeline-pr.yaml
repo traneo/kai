@@ -1,0 +1,30 @@
+version: 1
+project: PR-test-001
+output:
+  type: pr
+  branch_prefix: feat/kai-pr-
+
+steps:
+  - id: scaffold
+    prompt: "Create a README.md with project overview and usage"
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./]
+    approval: optional
+
+  - id: server
+    depends_on: [scaffold]
+    prompt: "Create main.go with a minimal HTTP server that returns 'hello from kai' on GET /"
+    policy:
+      allowed_tools: [read_file, write_file, run, glob, search, list_dir]
+      allowed_commands: [go mod init *, go build ./*, go mod tidy, mkdir *]
+      allowed_dirs: [./]
+    approval: optional
+
+  - id: docs
+    depends_on: [server]
+    prompt: "Add CONTRIBUTING.md with setup and deployment instructions"
+    policy:
+      allowed_tools: [read_file, write_file, glob, search, list_dir]
+      allowed_dirs: [./]
+    approval: optional

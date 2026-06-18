@@ -1,0 +1,9 @@
+{
+  "name": "conventional_commits",
+  "version": "1.0.0",
+  "api_version": "v1",
+  "type": "gate",
+  "gate_types": ["conventional_commits"],
+  "binary": "conventional-commits-gate",
+  "config": {}
+}

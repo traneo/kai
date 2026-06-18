@@ -1,0 +1,12 @@
+syntax = "proto3";
+package kaiplatform.v1;
+
+option go_package = "kaiplatform.com/gen/kaiplatform/v1;kaipb";
+
+import "kaiplatform/v1/types.proto";
+
+service Agent {
+  rpc AssignMission(Mission) returns (stream MissionEvent);
+  rpc CancelMission(MissionID) returns (Ack);
+  rpc HealthCheck(Empty) returns (HealthStatus);
+}

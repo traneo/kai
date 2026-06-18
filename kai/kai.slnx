@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/kai.Agents/kai.Agents.csproj" />
+    <Project Path="src/kai.Cli/kai.Cli.csproj" />
+    <Project Path="src/kai.Core/kai.Core.csproj" />
+    <Project Path="src/kai.Git/kai.Git.csproj" />
+    <Project Path="src/kai.LLM/kai.LLM.csproj" />
+    <Project Path="src/kai.Orchestrator/kai.Orchestrator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/kai.Tests/kai.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates libc6-compat git
+COPY --from=runtime /usr/share/dotnet /usr/share/dotnet
+ENV DOTNET_ROOT=/usr/share/dotnet
+COPY agent-kai /app/
+WORKDIR /app
+EXPOSE 50052
+ENTRYPOINT ["/app/agent"]

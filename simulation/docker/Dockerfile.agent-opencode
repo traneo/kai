@@ -1,0 +1,6 @@
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates libc6-compat git
+COPY agent-opencode /app/
+WORKDIR /app
+EXPOSE 50053
+ENTRYPOINT ["/app/agent"]

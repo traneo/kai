@@ -1,0 +1,11 @@
+{
+  "name": "local-fs",
+  "version": "1.0.0",
+  "api_version": "1",
+  "type": "archive",
+  "backend": "local",
+  "binary": "local-fs-plugin",
+  "config": {
+    "base_dir": "/tmp/kai-archives"
+  }
+}
