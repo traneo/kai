@@ -15,7 +15,7 @@ public static class InitCommand
         cmd.SetAction((ParseResult ctx) =>
         {
             var force = ctx.GetValue(forceOpt);
-            var configPath = Path.Combine(Directory.GetCurrentDirectory(), "kai.json");
+            var configPath = Path.Combine(Directory.GetCurrentDirectory(), "kai-code.json");
 
             if (File.Exists(configPath) && !force)
             {

@@ -156,7 +156,7 @@ func (c *Coordinator) HandleMissionResult(ctx context.Context, runID, stepID, ag
 		} else {
 			c.publish(map[string]any{
 				"type": "step_failed", "run_id": runID, "step_id": stepID,
-				"error": fmt.Sprintf("validation failed: %v", failed),
+				"error":   fmt.Sprintf("validation failed: %v", failed),
 				"retries": stepState.Retries,
 			})
 		}
@@ -242,6 +242,36 @@ func (c *Coordinator) RetryStep(runID, stepID string) error {
 	c.publish(map[string]any{"type": "step_retried", "run_id": runID, "step_id": stepID})
 	c.tryDispatchSteps(run)
 	return nil
+}
+
+func (c *Coordinator) RejectStep(runID, stepID, message string) {
+	c.mu.Lock()
+	run, ok := c.runs[runID]
+	c.mu.Unlock()
+	if !ok {
+		return
+	}
+
+	run.ValidateStep(stepID, false, fmt.Sprintf("rejected by human: %s", message))
+	c.saveRun(run)
+	c.auditLog(audit.EventApprovalRejected, runID, stepID, "", message, nil)
+	c.publish(map[string]any{"type": "step_rejected", "run_id": runID, "step_id": stepID, "message": message})
+}
+
+func (c *Coordinator) TryAgainStep(runID, stepID, feedback string) {
+	c.mu.Lock()
+	run, ok := c.runs[runID]
+	c.mu.Unlock()
+	if !ok {
+		return
+	}
+
+	run.SetStepFeedback(stepID, feedback)
+	run.ResetStep(stepID)
+	c.saveRun(run)
+	c.auditLog(audit.EventSystem, runID, stepID, "", fmt.Sprintf("try-again: %s", feedback), nil)
+	c.publish(map[string]any{"type": "step_try_again", "run_id": runID, "step_id": stepID, "message": feedback})
+	c.tryDispatchSteps(run)
 }
 
 func (c *Coordinator) publishAfterStateChange(run *workflow.Run) {

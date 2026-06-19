@@ -58,7 +58,7 @@ public sealed class GitService : IGitService
         if (author is null)
         {
             _logger.LogWarning("No git user configured, using fallback signature");
-            author = new Signature("kai", "kai@local", DateTimeOffset.UtcNow);
+            author = new Signature("kai-code", "kai-code@local", DateTimeOffset.UtcNow);
         }
 
         Commands.Stage(repo, "*");

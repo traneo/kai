@@ -52,8 +52,8 @@ func (s *Sandbox) initRepo() error {
 	git("init").Run()
 
 	for _, cfg := range []struct{ key, val string }{
-		{"user.email", "kai@agent"},
-		{"user.name", "Kai Agent"},
+		{"user.email", "kai-code@agent"},
+		{"user.name", "KaiCode Agent"},
 	} {
 		if err := git("config", cfg.key, cfg.val).Run(); err != nil {
 			return fmt.Errorf("git config %s: %w", cfg.key, err)
@@ -116,6 +116,11 @@ func (s *Sandbox) SetupWithRepo(ctx context.Context, repoURL, branch string) err
 
 	if err := s.ignoreKaiFiles(); err != nil {
 		return fmt.Errorf("ignore kai files: %w", err)
+	}
+
+	// Remove remote so subprocess cannot push
+	if repoURL != "" {
+		gitCmd("remote", "remove", "origin").Run()
 	}
 
 	return nil

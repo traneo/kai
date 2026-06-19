@@ -1,5 +1,5 @@
 .PHONY: all build install clean \
-        build-runner-kai build-runner-opencode build-runner-claude \
+        build-runner-kai-code build-runner-opencode build-runner-claude \
         build-gate-commits build-gitprovider-forgejo \
         build-archive-local-fs build-secrets-env
 
@@ -7,14 +7,14 @@ PLUGIN_DIR := $(HOME)/.kai/plugins
 
 all: build
 
-build: build-runner-kai build-runner-opencode build-runner-claude \
+build: build-runner-kai-code build-runner-opencode build-runner-claude \
        build-gate-commits build-gitprovider-forgejo \
        build-archive-local-fs build-secrets-env
 
 # --- runner plugins ---
 
-build-runner-kai:
-	cd runner/kai-plugin && go build -o kai-plugin .
+build-runner-kai-code:
+	cd runner/kai-code-plugin && go build -o kai-code-plugin .
 
 build-runner-opencode:
 	cd runner/opencode-plugin && go build -o opencode-plugin .
@@ -43,10 +43,10 @@ build-secrets-env:
 	cd secrets/env-plugin && go build -o env-plugin .
 
 install: build
-	@mkdir -p $(PLUGIN_DIR)/kai
-	cp runner/kai-plugin/kai-plugin $(PLUGIN_DIR)/kai/
-	cp runner/kai-plugin/plugin.json $(PLUGIN_DIR)/kai/
-	@echo "Installed kai-plugin to $(PLUGIN_DIR)/kai/"
+	@mkdir -p $(PLUGIN_DIR)/kai-code
+	cp runner/kai-code-plugin/kai-code-plugin $(PLUGIN_DIR)/kai-code/
+	cp runner/kai-code-plugin/plugin.json $(PLUGIN_DIR)/kai-code/
+	@echo "Installed kai-code-plugin to $(PLUGIN_DIR)/kai-code/"
 
 	@mkdir -p $(PLUGIN_DIR)/opencode
 	cp runner/opencode-plugin/opencode-plugin $(PLUGIN_DIR)/opencode/
@@ -64,7 +64,7 @@ install: build
 	@echo "Installed conventional-commits-gate to $(PLUGIN_DIR)/conventional-commits/"
 
 	@mkdir -p $(PLUGIN_DIR)/forgejo
-	cp gitprovider/forgejo-provider/forgejo-provider $(PLUGIN_DIR)/forgejo/
+	cp gitprovider/forgejo-provider/forgejo-plugin $(PLUGIN_DIR)/forgejo/
 	cp gitprovider/forgejo-provider/plugin.json $(PLUGIN_DIR)/forgejo/
 	@echo "Installed forgejo-provider to $(PLUGIN_DIR)/forgejo/"
 
@@ -79,14 +79,14 @@ install: build
 	@echo "Installed env-plugin to $(PLUGIN_DIR)/env/"
 
 clean:
-	rm -f runner/kai-plugin/kai-plugin
+	rm -f runner/kai-code-plugin/kai-code-plugin
 	rm -f runner/opencode-plugin/opencode-plugin
 	rm -f runner/claude-plugin/claude-plugin
 	rm -f gate/conventional-commits-gate/plugin
-	rm -f gitprovider/forgejo-provider/forgejo-provider
+	rm -f gitprovider/forgejo-provider/forgejo-plugin
 	rm -f archive/local-fs-plugin/local-fs-plugin
 	rm -f secrets/env-plugin/env-plugin
-	rm -rf $(PLUGIN_DIR)/kai
+	rm -rf $(PLUGIN_DIR)/kai-code
 	rm -rf $(PLUGIN_DIR)/opencode
 	rm -rf $(PLUGIN_DIR)/claude-code
 	rm -rf $(PLUGIN_DIR)/conventional-commits

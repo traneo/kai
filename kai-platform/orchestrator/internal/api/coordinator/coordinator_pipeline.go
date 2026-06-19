@@ -236,8 +236,13 @@ func (c *Coordinator) DrainQueue() {
 
 func (c *Coordinator) dispatchStep(run *workflow.Run, stepID string) {
 	snap := run.Snapshot()
-	step := snap.StepStates[stepID].Step
+	stepState := snap.StepStates[stepID]
+	step := stepState.Step
 	prompt := step.Prompt
+
+	if stepState.Feedback != "" {
+		prompt = fmt.Sprintf("%s\n\n---\nThe reviewer provided this feedback:\n%s", prompt, stepState.Feedback)
+	}
 
 	if step.Policy.Agent != "" {
 		agentID := step.Policy.Agent

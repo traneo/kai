@@ -43,7 +43,7 @@ export async function fetchPipelineDetail(id: string) {
   return res.json()
 }
 
-export async function approveStep(pipelineId: string, stepId: string, action: 'approve' | 'reject', message?: string) {
+export async function approveStep(pipelineId: string, stepId: string, action: 'approve' | 'reject' | 'try-again', message?: string) {
   const res = await fetch(`${API}/pipelines/${pipelineId}/steps/${stepId}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

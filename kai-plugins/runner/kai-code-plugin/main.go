@@ -23,29 +23,29 @@ type opencodeConfig struct {
 	Data   json.RawMessage `json:"data"`
 }
 
-type kaiRunnerData struct {
+type kaiCodeRunnerData struct {
 	Language         string                    `json:"language,omitempty"`
 	BranchPrefix     string                    `json:"branchPrefix,omitempty"`
 	AutoCommit       *bool                     `json:"autoCommit,omitempty"`
 	AutoPush         *bool                     `json:"autoPush,omitempty"`
 	Rules            []string                  `json:"rules,omitempty"`
 	MaxContextTokens int                       `json:"maxContextTokens,omitempty"`
-	Limits           *kaiLimitsConfig          `json:"limits,omitempty"`
-	Agents           map[string]*kaiAgentConfig `json:"agents,omitempty"`
+	Limits           *kaiCodeLimitsConfig          `json:"limits,omitempty"`
+	Agents           map[string]*kaiCodeAgentConfig `json:"agents,omitempty"`
 }
 
-type kaiConfig struct {
+type kaiCodeConfig struct {
 	Language         string                    `json:"language,omitempty"`
 	BranchPrefix     string                    `json:"branchPrefix,omitempty"`
 	AutoCommit       *bool                     `json:"autoCommit,omitempty"`
 	AutoPush         *bool                     `json:"autoPush,omitempty"`
 	Rules            []string                  `json:"rules,omitempty"`
 	MaxContextTokens int                       `json:"maxContextTokens,omitempty"`
-	Limits           *kaiLimitsConfig          `json:"limits,omitempty"`
-	Agents           map[string]*kaiAgentConfig `json:"agents,omitempty"`
+	Limits           *kaiCodeLimitsConfig          `json:"limits,omitempty"`
+	Agents           map[string]*kaiCodeAgentConfig `json:"agents,omitempty"`
 }
 
-type kaiAgentConfig struct {
+type kaiCodeAgentConfig struct {
 	Endpoint    string   `json:"endpoint,omitempty"`
 	Model       string   `json:"model,omitempty"`
 	Provider    string   `json:"provider,omitempty"`
@@ -55,16 +55,16 @@ type kaiAgentConfig struct {
 	TopK        *int     `json:"topK,omitempty"`
 }
 
-type kaiLimitsConfig struct {
-	AgentLoop *kaiAgentLoopLimits `json:"agentLoop,omitempty"`
-	Retries   *kaiRetryLimits     `json:"retries,omitempty"`
-	Output    *kaiOutputLimits    `json:"output,omitempty"`
-	Llm       *kaiLlmLimits       `json:"llm,omitempty"`
-	Display   *kaiDisplayLimits   `json:"display,omitempty"`
-	Memory    *kaiMemoryLimits    `json:"memory,omitempty"`
+type kaiCodeLimitsConfig struct {
+	AgentLoop *kaiCodeAgentLoopLimits `json:"agentLoop,omitempty"`
+	Retries   *kaiCodeRetryLimits     `json:"retries,omitempty"`
+	Output    *kaiCodeOutputLimits    `json:"output,omitempty"`
+	Llm       *kaiCodeLlmLimits       `json:"llm,omitempty"`
+	Display   *kaiCodeDisplayLimits   `json:"display,omitempty"`
+	Memory    *kaiCodeMemoryLimits    `json:"memory,omitempty"`
 }
 
-type kaiAgentLoopLimits struct {
+type kaiCodeAgentLoopLimits struct {
 	MaxIterations       int `json:"maxIterations,omitempty"`
 	MaxToolPairs        int `json:"maxToolPairs,omitempty"`
 	CompressThreshold   int `json:"compressThreshold,omitempty"`
@@ -73,7 +73,7 @@ type kaiAgentLoopLimits struct {
 	ToolOutputChars     int `json:"toolOutputChars,omitempty"`
 }
 
-type kaiRetryLimits struct {
+type kaiCodeRetryLimits struct {
 	TestFixAttempts      int   `json:"testFixAttempts,omitempty"`
 	ReviewFixAttempts    int   `json:"reviewFixAttempts,omitempty"`
 	LlmApiRetries        int   `json:"llmApiRetries,omitempty"`
@@ -81,7 +81,7 @@ type kaiRetryLimits struct {
 	GateTimeoutMinutes   int   `json:"gateTimeoutMinutes,omitempty"`
 }
 
-type kaiOutputLimits struct {
+type kaiCodeOutputLimits struct {
 	SearchResults       int `json:"searchResults,omitempty"`
 	SearchFileSizeBytes int `json:"searchFileSizeBytes,omitempty"`
 	FilePathMaxChars    int `json:"filePathMaxChars,omitempty"`
@@ -96,11 +96,11 @@ type kaiOutputLimits struct {
 	RecentGoalsCount    int `json:"recentGoalsCount,omitempty"`
 }
 
-type kaiLlmLimits struct {
+type kaiCodeLlmLimits struct {
 	MaxTokens int `json:"maxTokens,omitempty"`
 }
 
-type kaiDisplayLimits struct {
+type kaiCodeDisplayLimits struct {
 	LogChars             int `json:"logChars,omitempty"`
 	EventToolArgsChars   int `json:"eventToolArgsChars,omitempty"`
 	EventOutputChars     int `json:"eventOutputChars,omitempty"`
@@ -109,7 +109,7 @@ type kaiDisplayLimits struct {
 	SummaryToolLineChars int `json:"summaryToolLineChars,omitempty"`
 }
 
-type kaiMemoryLimits struct {
+type kaiCodeMemoryLimits struct {
 	MaxTaskHistoryEntries int `json:"maxTaskHistoryEntries,omitempty"`
 }
 
@@ -143,7 +143,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var kaiData kaiRunnerData
+	var kaiData kaiCodeRunnerData
 	if len(blob.Data) > 0 {
 		if err := json.Unmarshal(blob.Data, &kaiData); err != nil {
 			fmt.Fprintf(os.Stderr, "parse kai config: %v\n", err)
@@ -151,7 +151,7 @@ func main() {
 		}
 	}
 
-	cfg := kaiConfig{
+	cfg := kaiCodeConfig{
 		Language:         kaiData.Language,
 		BranchPrefix:     kaiData.BranchPrefix,
 		Rules:            kaiData.Rules,
@@ -171,8 +171,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "marshal kai config: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(filepath.Join(workDir, "kai.json"), data, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "write kai.json: %v\n", err)
+	if err := os.WriteFile(filepath.Join(workDir, "kai-code.json"), data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "write kai-code.json: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -189,10 +189,10 @@ func main() {
 	}
 
 	json.NewEncoder(os.Stdout).Encode(runDefinition{
-		Command: "{AGENTDIR}/kai",
+		Command: "{AGENTDIR}/kai-code",
 		Args: []string{
 			"run", "--json", "{PROMPT}",
-			"--config", "{WORKDIR}/kai.json",
+			"--config", "{WORKDIR}/kai-code.json",
 			"--policy", "{WORKDIR}/policy.json",
 		},
 	})

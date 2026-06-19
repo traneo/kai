@@ -6,7 +6,7 @@ public class kaiConfig
 {
     public string? Language { get; set; }
     public Dictionary<string, AgentConfig> Agents { get; set; } = [];
-    public string BranchPrefix { get; set; } = "kai/";
+    public string BranchPrefix { get; set; } = "kai-code/";
     public bool AutoCommit { get; set; } = true;
     public bool AutoPush { get; set; } = false;
     public List<string> Rules { get; set; } = [];

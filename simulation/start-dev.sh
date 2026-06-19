@@ -29,8 +29,14 @@ if ! command -v jq &>/dev/null; then
 	exit 1
 fi
 
+echo "=== Cleanning the binaries ==="
+make clean
+
+echo "=== Build full project ==="
+make build
+
 echo "=== Creating tmp directories ==="
-mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai,agent-opencode,agent-claude}
+mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai-code,agent-opencode,agent-claude}
 
 # ---- Config service ----
 
@@ -54,7 +60,7 @@ done
 # ---- Orchestrator ----
 
 echo "=== Starting orchestrator ==="
-KAI_PLUGIN_DIR="$ROOT/orchestrator/.kai/plugins" \
+KAI_PLUGIN_DIR="$ROOT/orchestrator/.kai-code/plugins" \
 	PORT="$ORCHESTRATOR_PORT" \
 	HTTP_PORT="$HTTP_PORT" \
 	CONFIG_SERVICE_URL="http://localhost:${CONFIG_PORT}" \
@@ -93,9 +99,9 @@ CONFIG_JSON=$(cat <<ENDJSON
       {
         "name": "local-coder-1",
         "blob": {
-          "runner": "kai",
+          "runner": "kai-code",
           "data": {
-            "branchPrefix": "kai/",
+            "branchPrefix": "kai-code/",
             "autoCommit": true,
             "maxContextTokens": 32768,
             "agents": {
@@ -161,9 +167,9 @@ echo "  Activated: $(echo "$ACTIVATE" | jq -c '.status, .hot_reloaded')"
 
 # ---- Agents ----
 
-echo "=== Starting agent-kai ==="
-KAI_PLUGIN_DIR="$ROOT/agent-kai/.kai/plugins" \
-	"$ROOT/agent-kai/agent" \
+echo "=== Starting agent-kai-code ==="
+KAI_PLUGIN_DIR="$ROOT/agent-kai-code/.kai-code/plugins" \
+	"$ROOT/agent-kai-code/agent" \
 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
 	--agent-id "local-coder-1" \
 	--agent-addr "localhost:50052" \
@@ -172,7 +178,7 @@ KAI_PLUGIN_DIR="$ROOT/agent-kai/.kai/plugins" \
 PIDS+=($!)
 
 echo "=== Starting agent-opencode ==="
-KAI_PLUGIN_DIR="$ROOT/agent-opencode/.kai/plugins" \
+KAI_PLUGIN_DIR="$ROOT/agent-opencode/.kai-code/plugins" \
 	"$ROOT/agent-opencode/agent" \
 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
 	--agent-id "local-coder-2" \
@@ -182,7 +188,7 @@ KAI_PLUGIN_DIR="$ROOT/agent-opencode/.kai/plugins" \
 PIDS+=($!)
 
 echo "=== Starting agent-claude ==="
-KAI_PLUGIN_DIR="$ROOT/agent-claude/.kai/plugins" \
+KAI_PLUGIN_DIR="$ROOT/agent-claude/.kai-code/plugins" \
 	"$ROOT/agent-claude/agent" \
 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
 	--agent-id "local-coder-3" \
@@ -205,7 +211,7 @@ echo "============================================"
 echo "  kai Platform — Simulation"
 echo "============================================"
 echo ""
-echo "  local-coder-1  →  kai         (gRPC :50052)"
+echo "  local-coder-1  →  kai-code    (gRPC :50052)"
 echo "  local-coder-2  →  opencode    (gRPC :50053)"
 echo "  local-coder-3  →  claude-code (gRPC :50054)"
 echo ""

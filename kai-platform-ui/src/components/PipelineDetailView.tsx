@@ -88,6 +88,15 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
     } catch { /* ignore */ }
   }
 
+  async function handleTryAgain(message?: string) {
+    if (!approvalStep) return
+    try {
+      await approveStep(detail.id, approvalStep.id, 'try-again', message)
+      setApprovalStep(null)
+      onUpdated()
+    } catch { /* ignore */ }
+  }
+
   async function handleReject(message?: string) {
     if (!approvalStep) return
     try {
@@ -216,6 +225,7 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
         <ApprovalDialog
           step={approvalStep}
           onApprove={handleApprove}
+          onTryAgain={handleTryAgain}
           onReject={handleReject}
           onClose={() => setApprovalStep(null)}
         />
@@ -556,14 +566,16 @@ function FileTreeItem({ node, depth, selectedFile, onSelect, expandedDirs, onTog
   )
 }
 
-function ApprovalDialog({ step, onApprove, onReject, onClose }: {
+function ApprovalDialog({ step, onApprove, onTryAgain, onReject, onClose }: {
   step: StepDetail
   onApprove: (msg?: string) => void
+  onTryAgain?: (msg?: string) => void
   onReject: (msg?: string) => void
   onClose: () => void
 }) {
   const [message, setMessage] = useState('')
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [tryAgainLoading, setTryAgainLoading] = useState(false)
 
   const diffFiles = step.diff ? parseDiffFiles(step.diff) : []
   const gates = step.gate_results || []
@@ -686,7 +698,7 @@ function ApprovalDialog({ step, onApprove, onReject, onClose }: {
         <div className="approval-bottombar">
           <textarea
             className="approval-msg"
-            placeholder="Optional review message..."
+            placeholder="Feedback for try-again or reason for reject..."
             value={message}
             onChange={e => setMessage(e.target.value)}
             rows={1}
@@ -695,6 +707,14 @@ function ApprovalDialog({ step, onApprove, onReject, onClose }: {
             <button className="btn btn-approve-action" onClick={() => onApprove(message)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><polyline points="20 6 9 17 4 12" /></svg>
               Approve
+            </button>
+            <button className="btn btn-try-again" onClick={() => {
+              if (!message.trim() || !onTryAgain) return
+              setTryAgainLoading(true)
+              onTryAgain(message)
+            }} disabled={!message.trim() || !onTryAgain || tryAgainLoading}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+              Try Again
             </button>
             <button className="btn btn-reject" onClick={() => onReject(message)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>

@@ -2,7 +2,7 @@
 using System.CommandLine.Parsing;
 using kai.Cli.Commands;
 
-var root = new RootCommand("kai - AI Development Lifecycle Companion");
+var root = new RootCommand("kai-code - AI Development Lifecycle Companion");
 
 var initCmd = new Command("init", "Scaffold kai.json configuration in the current directory");
 var planCmd = new Command("plan", "Generate a plan for a development goal");

@@ -178,4 +178,4 @@ export interface ReloadResult {
   errors?: string[]
 }
 
-export type Page = 'landing' | 'dashboard' | 'detail' | 'new' | 'audit' | 'secrets' | 'platform-config'
+export type Page = 'dashboard' | 'detail' | 'new' | 'audit' | 'secrets' | 'platform-config'

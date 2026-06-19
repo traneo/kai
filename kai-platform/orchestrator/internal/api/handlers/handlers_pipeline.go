@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -245,19 +244,24 @@ func HandleApprove(d *Deps, w http.ResponseWriter, r *http.Request, id, step str
 		return
 	}
 
-	if req.Action == "approve" {
+	switch req.Action {
+	case "approve":
 		run.ValidateStep(step, true, "approved by human")
 		d.Coordinator.AuditLogApprove(id, step, "approved by human")
 		d.PublishEvent(map[string]any{"type": "step_approved", "run_id": id, "step_id": step})
 		d.Coordinator.CheckNextSteps(run)
 		json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
-	} else if req.Action == "reject" {
-		run.ValidateStep(step, false, fmt.Sprintf("rejected by human: %s", req.Message))
-		d.Coordinator.AuditLogReject(id, step, req.Message)
-		d.PublishEvent(map[string]any{"type": "step_rejected", "run_id": id, "step_id": step})
+
+	case "reject":
+		d.Coordinator.RejectStep(id, step, req.Message)
 		json.NewEncoder(w).Encode(map[string]string{"status": "rejected"})
-	} else {
-		writeError(w, http.StatusBadRequest, "action must be 'approve' or 'reject'")
+
+	case "try-again":
+		d.Coordinator.TryAgainStep(id, step, req.Message)
+		json.NewEncoder(w).Encode(map[string]string{"status": "try_again"})
+
+	default:
+		writeError(w, http.StatusBadRequest, "action must be 'approve', 'reject', or 'try-again'")
 	}
 }
 

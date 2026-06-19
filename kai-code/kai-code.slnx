@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KaiCode.Agents/KaiCode.Agents.csproj" />
+    <Project Path="src/KaiCode.Cli/KaiCode.Cli.csproj" />
+    <Project Path="src/KaiCode.Core/KaiCode.Core.csproj" />
+    <Project Path="src/KaiCode.Git/KaiCode.Git.csproj" />
+    <Project Path="src/KaiCode.LLM/KaiCode.LLM.csproj" />
+    <Project Path="src/KaiCode.Orchestrator/KaiCode.Orchestrator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KaiCode.Tests/KaiCode.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -200,7 +200,7 @@ func (s *Server) AssignMissionToAgent(ctx context.Context, agentID, missionID, p
 
 	// Look up the pool config to determine runner type
 	configBlob := ""
-	runnerType := "kai"
+	runnerType := "kai-code"
 	if poolCfg, ok := s.coordinator.GetAgentPool(agentID); ok && poolCfg.ConfigBlob != "" {
 		configBlob = poolCfg.ConfigBlob
 		var blob struct {

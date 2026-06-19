@@ -36,7 +36,7 @@ You define a pipeline in YAML
 |       |         |         |            |
 |       | runner plugins (Go)            |
 |       v         v         v             |
-|    kai CLI   opencode    claude        |
+|    kai-code CLI   opencode    claude        |
 |   (C# .NET)  binary     code CLI       |
 |       |         |         |            |
 |       +---------+---------+            |
@@ -101,7 +101,7 @@ Steps form a DAG via `depends_on`. See [examples/](examples/) for full pipelines
 ## Requirements
 
 - **Go 1.25+** (orchestrator, config service, agent worker, plugins)
-- **.NET 10 SDK** (kai CLI agent — the C# .NET agent runtime)
+- **.NET 10 SDK** (kai-code CLI agent — the C# .NET agent runtime)
 - **Node.js 20+** (web UI build)
 - **Docker** (optional, for the containerized simulation)
 - **jq** (used by `start-dev.sh`)
@@ -154,7 +154,7 @@ kaictl pipeline create --file examples/pipeline-forgejo.yaml
 ## What Kai gives you
 
 - **DAG pipelines** — Steps run in parallel when the dependency graph allows it, with cycle detection.
-- **Pluggable runners** — The C# .NET kai CLI, opencode, or Claude Code can each be used as the agent runtime for a pool. Add your own by writing a runner plugin.
+- **Pluggable runners** — The C# .NET kai-code CLI, opencode, or Claude Code can each be used as the agent runtime for a pool. Add your own by writing a runner plugin.
 - **10 validation gates** — `exit_zero`, `lint`, `typecheck`, `tests`, `diff_review`, `approval`, `security_scan`, `license_check`, `breaking_changes`, `code_quality`. Add custom gates as plugins.
 - **Human-in-the-loop** — Per-step approval gates that block a step until a human approves via the UI or `kaictl`.
 - **Policy enforcement** — Per-step `allowed_tools`, `allowed_commands`, `allowed_dirs`. Misuse is rejected before any code runs.
@@ -171,7 +171,7 @@ kaictl pipeline create --file examples/pipeline-forgejo.yaml
 
 ```
 kai-project/
-|-- kai/                      # C# .NET agent runtime (the kai CLI)
+|-- kai-code/                      # C# .NET agent runtime (the kai-code CLI)
 |-- kai-platform/             # Go orchestrator + agent worker
 |   |-- orchestrator/         #   workflow engine, API, agent pool, gates
 |   |-- agent/                #   worker that hosts runner plugins
@@ -202,7 +202,7 @@ Plugins are standalone binaries discovered at startup from `$KAI_PLUGIN_DIR` (de
 
 | Plugin type    | Role                               | Examples in the repo             |
 | -------------- | ---------------------------------- | -------------------------------- |
-| `runner`       | AI agent runtime                   | kai, opencode, claude-code       |
+| `runner`       | AI agent runtime                   | kai-code, opencode, claude-code       |
 | `gate`         | Validation gate                    | conventional-commits             |
 | `gitprovider`  | Git platform integration           | forgejo                          |
 | `secrets`      | Secret store backend               | env                              |
@@ -232,8 +232,8 @@ Individual components build with their native toolchains:
 # Orchestrator / agent / plugins
 cd kai-platform && make build
 
-# kai CLI
-cd kai && dotnet build
+# kai-code CLI
+cd kai-code && dotnet build
 
 # Web UI
 cd kai-platform-ui && npm install && npm run dev

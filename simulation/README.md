@@ -31,29 +31,29 @@ simulation/
 │   ├── orchestrator      # binary
 │   ├── .env              # env vars for Docker (clean KEY=VALUE)
 │   ├── .env.docs         # env vars with comments (reference)
-│   └── .kai/plugins/     # gate, gitprovider, archive, secrets
+│   └── .kai-code/plugins/ # gate, gitprovider, archive, secrets
 │
 ├── config-service/       # container: config-service
 │   ├── config-service
 │   ├── .env
 │   └── .env.docs
 │
-├── agent-kai/            # container: agent + kai CLI
+├── agent-kai-code/       # container: agent + kai-code CLI
 │   ├── agent             # agent binary
-│   ├── kai               # wrapper → kai-cli/Kai.Cli
-│   ├── kai-cli/          # .NET publish output
+│   ├── kai-code          # wrapper → kai-code-cli/KaiCode.Cli
+│   ├── kai-code-cli/     # .NET publish output
 │   ├── .env / .env.docs
-│   └── .kai/plugins/kai/ # kai runner plugin
+│   └── .kai-code/plugins/kai-code/ # kai-code runner plugin
 │
 ├── agent-opencode/       # container: agent for opencode
 │   ├── agent
 │   ├── .env / .env.docs
-│   └── .kai/plugins/opencode/
+│   └── .kai-code/plugins/opencode/
 │
 ├── agent-claude/         # container: agent for claude-code
 │   ├── agent
 │   ├── .env / .env.docs
-│   └── .kai/plugins/claude-code/
+│   └── .kai-code/plugins/claude-code/
 │
 ├── ui/                   # static web UI
 │   └── dist/
@@ -96,7 +96,7 @@ docker run --env-file ./orchestrator/.env kai-orchestrator
 | agent | `AGENT_ID` | local-coder-N | Agent identity |
 | agent | `AGENT_LISTEN` | :5005N | gRPC bind address |
 | agent | `MISSION_TIMEOUT` | 5m | Per-mission timeout |
-| all | `KAI_PLUGIN_DIR` | `./.kai/plugins` | Plugin discovery directory |
+| all | `KAI_PLUGIN_DIR` | `./.kai-code/plugins` | Plugin discovery directory |
 
 ## Plugin system
 
@@ -104,14 +104,14 @@ Each service discovers plugins at runtime via `KAI_PLUGIN_DIR`. The directory
 contains subdirectories with `plugin.json` manifests:
 
 ```
-.kai/plugins/
-├── kai/              → agent-kai runner plugin (type: runner)
-├── opencode/         → agent-opencode runner plugin (type: runner)
-├── claude-code/      → agent-claude runner plugin (type: runner)
+.kai-code/plugins/
+├── kai-code/              → agent-kai-code runner plugin (type: runner)
+├── opencode/              → agent-opencode runner plugin (type: runner)
+├── claude-code/           → agent-claude runner plugin (type: runner)
 ├── conventional-commits/  → orchestrator gate plugin (type: gate)
-├── forgejo/          → orchestrator gitprovider plugin (type: gitprovider)
-├── local-fs/         → orchestrator archive plugin (type: archive)
-└── env/              → orchestrator secrets plugin (type: secrets)
+├── forgejo/               → orchestrator gitprovider plugin (type: gitprovider)
+├── local-fs/              → orchestrator archive plugin (type: archive)
+└── env/                   → orchestrator secrets plugin (type: secrets)
 ```
 
 Each container only receives the plugins relevant to its role.
@@ -126,7 +126,7 @@ Runs all services directly on the host (no Docker):
 4. Web UI (via vite preview) on `:5173`
 
 After startup, pushes platform config with 3 pools:
-- `local-coder-1` → kai runner
+- `local-coder-1` → kai-code runner
 - `local-coder-2` → opencode runner
 - `local-coder-3` → claude-code runner
 

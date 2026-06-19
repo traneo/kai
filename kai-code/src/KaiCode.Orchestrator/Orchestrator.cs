@@ -136,7 +136,7 @@ public sealed class Orchestrator
                 Status = Core.Models.TaskStatus.Pending
             }).ToList();
 
-            try { _git.Commit(workingDirectory, "kai: " + goal); }
+            try { _git.Commit(workingDirectory, "kai-code: " + goal); }
             catch (Exception ex) { _logger.LogWarning(ex, "Commit skipped (no changes to commit)"); }
         }
 
@@ -217,7 +217,7 @@ public sealed class Orchestrator
                     var fixResult = await coder.ExecuteAsync(fixContext, ct);
                     if (fixResult.FilesChanged.Count > 0)
                     {
-                        _git.Commit(workingDirectory, $"kai: fix review issues (attempt {fixAttempt + 1})");
+                        _git.Commit(workingDirectory, $"kai-code: fix review issues (attempt {fixAttempt + 1})");
                     }
                 }
                 catch (Exception ex)

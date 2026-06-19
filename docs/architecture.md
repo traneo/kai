@@ -8,8 +8,8 @@ The platform runs as a set of cooperating services:
 
 - **Orchestrator** (Go) - workflow engine, API, agent pool, validation gates, git operations, audit, secrets
 - **Agent workers** (Go) - hosts runner plugins that execute AI coding tools against an LLM
-- **Runner plugins** (Go) - small wrapper binaries that wrap the actual AI coding tool (kai CLI, opencode, Claude Code)
-- **kai CLI** (C# .NET) - the bundled AI agent runtime used by the kai runner plugin
+- **Runner plugins** (Go) - small wrapper binaries that wrap the actual AI coding tool (kai-code CLI, opencode, Claude Code)
+- **kai-code CLI** (C# .NET) - the bundled AI agent runtime used by the kai-code runner plugin
 - **Config service** (Go) - versioned platform configuration with hot-reload
 - **Web UI** (React 19 + TypeScript + Vite) - pipeline management, live monitoring, audit, secrets, config
 - **kaictl** (Go) - command-line client for the orchestrator
@@ -64,7 +64,7 @@ Everything is self-hosted. The whole system is started together via the `simulat
 |         | subprocess (runner plugin)                              |
 |         v                 v                v                     |
 |  +-------------+  +--------------+  +-------------+              |
-|  | kai CLI     |  | opencode     |  | Claude      |              |
+|  | kai-code CLI   |  | opencode     |  | Claude      |              |
 |  | (C# .NET)   |  | binary       |  | Code CLI    |              |
 |  | tool-use    |  |              |  |             |              |
 |  | loop        |  |              |  |             |              |
@@ -161,7 +161,7 @@ Step:
 A Go worker that connects to the orchestrator via gRPC. When the orchestrator assigns a mission, the agent:
 
 1. Sets up a sandboxed workspace (temp dir + repo clone if a repo is configured).
-2. Resolves the runner plugin by name (default `kai`, can be overridden via the step's `policy.runner`).
+ 2. Resolves the runner plugin by name (default `kai-code`, can be overridden via the step's `policy.runner`).
 3. Invokes the plugin binary, which spawns and supervises the actual AI coding tool.
 4. Streams stdout / stderr / file changes back to the orchestrator as log entries.
 5. Returns the final `MissionResult` (success, exit code, archive).
@@ -186,7 +186,7 @@ Small Go binaries that wrap an external AI coding tool. The agent worker spawns 
 
 | Plugin | Wraps | Notes |
 | --- | --- | --- |
-| `kai-plugin` | kai CLI (C# .NET) | Bundled AI coding agent with its own tool-use loop |
+| `kai-code-plugin` | kai-code CLI (C# .NET) | Bundled AI coding agent with its own tool-use loop |
 | `opencode-plugin` | opencode CLI | Passes the mission prompt through |
 | `claude-plugin` | Claude Code CLI | Passes the mission prompt through |
 
@@ -194,27 +194,27 @@ The plugin contract: the agent invokes the plugin with CLI flags describing the 
 
 ---
 
-### kai CLI (`kai/`)
+### kai-code CLI (`kai-code/`)
 
-The C# .NET agent runtime used by the `kai-plugin`. Implements the tool-use loop against an LLM (read / write / run / search / glob / list_dir), with:
+The C# .NET agent runtime used by the `kai-code-plugin`. Implements the tool-use loop against an LLM (read / write / run / search / glob / list_dir), with:
 
 - Multi-agent roles: `ToolCoderAgent` (coding), `TesterAgent` (test generation), `ReviewerAgent` (code review).
 - Per-agent LLM model configuration (different model, temperature, etc. for coder / tester / reviewer).
 - Context compression when estimated tokens exceed 85% of `MaxContextTokens`.
 - Read-file caching (deduplicates repeated reads within a session).
-- Project memory persisted in `.kai/` (SHA256-keyed by working dir).
+- Project memory persisted in `.kai-code/` (SHA256-keyed by working dir).
 - Policy enforcement: `allowed_tools`, `allowed_commands`, `allowed_dirs`.
 
 **Projects:**
 
 | Project | Responsibility |
 | --- | --- |
-| `Kai.Cli` | Entry point, command handling |
-| `Kai.Core` | Core abstractions - agent interface, models, configuration, event bus, project memory, tools |
-| `Kai.Orchestrator` | Local pipeline orchestration - runs coding -> testing -> review phases sequentially |
-| `Kai.Agents` | Agent implementations - `ToolCoderAgent`, `TesterAgent`, `ReviewerAgent` |
-| `Kai.LLM` | LLM abstraction - `IChatCompletion` with `OpenAiChatCompletion` implementation |
-| `Kai.Git` | Git operations via LibGit2Sharp |
+| `KaiCode.Cli` | Entry point, command handling |
+| `KaiCode.Core` | Core abstractions - agent interface, models, configuration, event bus, project memory, tools |
+| `KaiCode.Orchestrator` | Local pipeline orchestration - runs coding -> testing -> review phases sequentially |
+| `KaiCode.Agents` | Agent implementations - `ToolCoderAgent`, `TesterAgent`, `ReviewerAgent` |
+| `KaiCode.LLM` | LLM abstraction - `IChatCompletion` with `OpenAiChatCompletion` implementation |
+| `KaiCode.Git` | Git operations via LibGit2Sharp |
 
 ---
 
@@ -277,7 +277,7 @@ A standalone REST service for managing platform configuration as versioned JSON 
 **Configuration model:**
 
 - `SystemConfig` - full platform configuration including server, auth, pool, backends, and agent pool definitions
-- `KaiConfig` - per-pool kai CLI configuration (language, branch prefix, agents, rules, maxContextTokens, detailed limits)
+- `KaiConfig` - per-pool kai-code CLI configuration (language, branch prefix, agents, rules, maxContextTokens, detailed limits)
 
 **Version lifecycle:**
 
@@ -337,7 +337,7 @@ External plugins discovered from `$KAI_PLUGIN_DIR` (defaults to `./.kai/plugins`
 
 ```
 .kai/plugins/
-|-- kai/              -> agent-kai runner plugin (type: runner)
+|-- kai-code/              -> agent-kai runner plugin (type: runner)
 |-- opencode/         -> agent-opencode runner plugin (type: runner)
 |-- claude-code/      -> agent-claude runner plugin (type: runner)
 |-- conventional-commits/  -> orchestrator gate plugin (type: gate)
@@ -397,7 +397,7 @@ steps:
 | --- | --- |
 | **Local dev (on host)** | `simulation/start-dev.sh` (or `make start-dev`) - builds everything, then starts config service (port 8081) + orchestrator (HTTP 8080, gRPC 50051) + 3 agents (50052-50054) + Web UI (5173) on the host |
 | **Docker** | `cd simulation && make docker-build && docker compose up` - the same 6 services, each in its own container |
-| **Individual components** | `dotnet build` in `kai/`, `make build` in `kai-platform/`, `make build` in `kai-cli-control/`, `npm run dev` in `kai-platform-ui/` |
+| **Individual components** | `dotnet build` in `kai-code/`, `make build` in `kai-platform/`, `make build` in `kai-cli-control/`, `npm run dev` in `kai-platform-ui/` |
 
 ---
 

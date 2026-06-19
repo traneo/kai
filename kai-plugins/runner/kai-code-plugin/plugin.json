@@ -1,7 +1,7 @@
 {
-  "name": "kai",
+  "name": "kai-code",
   "version": "1.0.0",
   "api_version": "1",
   "type": "runner",
-  "binary": "kai-plugin"
+  "binary": "kai-code-plugin"
 }

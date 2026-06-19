@@ -2,12 +2,12 @@ ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SIM  := $(ROOT)/simulation
 
 .PHONY: build clean start-dev docker-build env-files \
-        env-orchestrator env-config-service env-agent-kai env-agent-opencode env-agent-claude \
-        build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-cli \
+        env-orchestrator env-config-service env-agent-kai-code env-agent-opencode env-agent-claude \
+        build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli \
         build-plugins \
-        dist-agent-kai dist-agent-opencode dist-agent-claude dist-orchestrator
+        dist-agent-kai-code dist-agent-opencode dist-agent-claude dist-orchestrator
 
-build: build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-cli build-plugins dist-orchestrator dist-agent-kai dist-agent-opencode dist-agent-claude
+build: build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
 
 start-dev: build
 	./start-dev.sh
@@ -17,7 +17,7 @@ docker-build: build env-files
 
 # --- Environment variable reference files ---
 
-env-files: env-orchestrator env-config-service env-agent-kai env-agent-opencode env-agent-claude
+env-files: env-orchestrator env-config-service env-agent-kai-code env-agent-opencode env-agent-claude
 
 env-orchestrator:
 	@mkdir -p $(SIM)/orchestrator
@@ -31,7 +31,7 @@ env-orchestrator:
 	  echo "CONFIG_SERVICE_URL=http://localhost:8081";\
 	  echo "";\
 	  echo "# --- Plugins ---";\
-	  echo "KAI_PLUGIN_DIR=./.kai/plugins        # plugin discovery directory";\
+	  echo "KAI_PLUGIN_DIR=./.kai-code/plugins     # plugin discovery directory";\
 	  echo "";\
 	  echo "# --- Auth ---";\
 	  echo "INSECURE=true                        # set false in production";\
@@ -79,8 +79,8 @@ env-config-service:
 	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/config-service/.env.docs > $(SIM)/config-service/.env
 	@echo "Generated .env and .env.docs for config-service"
 
-env-agent-kai:
-	@mkdir -p $(SIM)/agent-kai
+env-agent-kai-code:
+	@mkdir -p $(SIM)/agent-kai-code
 	@{\
 	  echo "# Agent - Environment Variables";\
 	  echo "# Copy values below to .env and adjust as needed.";\
@@ -90,10 +90,10 @@ env-agent-kai:
 	  echo "AGENT_ADDR=localhost:50052           # address announced to orchestrator";\
 	  echo "AGENT_LISTEN=:50052                  # gRPC server bind address";\
 	  echo "MISSION_TIMEOUT=5m                   # per-mission timeout";\
-	  echo "KAI_PLUGIN_DIR=./.kai/plugins        # plugin discovery directory";\
-	} > $(SIM)/agent-kai/.env.docs
-	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/agent-kai/.env.docs > $(SIM)/agent-kai/.env
-	@echo "Generated .env and .env.docs for agent-kai"
+	  echo "KAI_PLUGIN_DIR=./.kai-code/plugins   # plugin discovery directory";\
+	} > $(SIM)/agent-kai-code/.env.docs
+	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/agent-kai-code/.env.docs > $(SIM)/agent-kai-code/.env
+	@echo "Generated .env and .env.docs for agent-kai-code"
 
 env-agent-opencode:
 	@mkdir -p $(SIM)/agent-opencode
@@ -106,7 +106,7 @@ env-agent-opencode:
 	  echo "AGENT_ADDR=localhost:50053           # address announced to orchestrator";\
 	  echo "AGENT_LISTEN=:50053                  # gRPC server bind address";\
 	  echo "MISSION_TIMEOUT=5m                   # per-mission timeout";\
-	  echo "KAI_PLUGIN_DIR=./.kai/plugins        # plugin discovery directory";\
+	  echo "KAI_PLUGIN_DIR=./.kai-code/plugins     # plugin discovery directory";\
 	} > $(SIM)/agent-opencode/.env.docs
 	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/agent-opencode/.env.docs > $(SIM)/agent-opencode/.env
 	@echo "Generated .env and .env.docs for agent-opencode"
@@ -122,7 +122,7 @@ env-agent-claude:
 	  echo "AGENT_ADDR=localhost:50054           # address announced to orchestrator";\
 	  echo "AGENT_LISTEN=:50054                  # gRPC server bind address";\
 	  echo "MISSION_TIMEOUT=5m                   # per-mission timeout";\
-	  echo "KAI_PLUGIN_DIR=./.kai/plugins        # plugin discovery directory";\
+	  echo "KAI_PLUGIN_DIR=./.kai-code/plugins     # plugin discovery directory";\
 	} > $(SIM)/agent-claude/.env.docs
 	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/agent-claude/.env.docs > $(SIM)/agent-claude/.env
 	@echo "Generated .env and .env.docs for agent-claude"
@@ -131,10 +131,10 @@ env-agent-claude:
 
 build-agent:
 	@echo "=== Building agent ==="
-	mkdir -p $(SIM)/agent-kai $(SIM)/agent-opencode $(SIM)/agent-claude
-	cd $(ROOT)/kai-platform && go build -o $(SIM)/agent-kai/agent ./agent/cmd/agent
-	cp $(SIM)/agent-kai/agent $(SIM)/agent-opencode/agent
-	cp $(SIM)/agent-kai/agent $(SIM)/agent-claude/agent
+	mkdir -p $(SIM)/agent-kai-code $(SIM)/agent-opencode $(SIM)/agent-claude
+	cd $(ROOT)/kai-platform && go build -o $(SIM)/agent-kai-code/agent ./agent/cmd/agent
+	cp $(SIM)/agent-kai-code/agent $(SIM)/agent-opencode/agent
+	cp $(SIM)/agent-kai-code/agent $(SIM)/agent-claude/agent
 
 build-orchestrator:
 	@echo "=== Building orchestrator ==="
@@ -159,12 +159,12 @@ build-ui:
 
 # --- Kai C# agent ---
 
-build-kai-cli:
-	@echo "=== Building kai C# agent ==="
-	mkdir -p $(SIM)/agent-kai/kai-cli
-	dotnet publish -c Release -o $(SIM)/agent-kai/kai-cli $(ROOT)/kai/src/Kai.Cli/Kai.Cli.csproj 2>&1 | tail -3
-	printf '#!/bin/bash\ndir="$$(dirname "$$0")"\nexec "$$dir/kai-cli/Kai.Cli" "$$@"\n' > $(SIM)/agent-kai/kai
-	chmod +x $(SIM)/agent-kai/kai
+build-kai-code-cli:
+	@echo "=== Building kai-code C# agent ==="
+	mkdir -p $(SIM)/agent-kai-code/kai-code-cli
+	dotnet publish -c Release -o $(SIM)/agent-kai-code/kai-code-cli $(ROOT)/kai-code/src/KaiCode.Cli/KaiCode.Cli.csproj 2>&1 | tail -3
+	printf '#!/bin/bash\ndir="$$(dirname "$$0")"\nexec "$$dir/kai-code-cli/KaiCode.Cli" "$$@"\n' > $(SIM)/agent-kai-code/kai-code
+	chmod +x $(SIM)/agent-kai-code/kai-code
 
 # --- Plugins ---
 
@@ -176,42 +176,42 @@ build-plugins:
 
 dist-orchestrator:
 	@echo "=== Distributing orchestrator plugins ==="
-	mkdir -p $(SIM)/orchestrator/.kai/plugins/conventional-commits
-	cp $(ROOT)/kai-plugins/gate/conventional-commits-gate/plugin        $(SIM)/orchestrator/.kai/plugins/conventional-commits/
-	cp $(ROOT)/kai-plugins/gate/conventional-commits-gate/plugin.json  $(SIM)/orchestrator/.kai/plugins/conventional-commits/
-	mkdir -p $(SIM)/orchestrator/.kai/plugins/forgejo
-	cp $(ROOT)/kai-plugins/gitprovider/forgejo-provider/forgejo-provider $(SIM)/orchestrator/.kai/plugins/forgejo/
-	cp $(ROOT)/kai-plugins/gitprovider/forgejo-provider/plugin.json     $(SIM)/orchestrator/.kai/plugins/forgejo/
-	mkdir -p $(SIM)/orchestrator/.kai/plugins/local-fs
-	cp $(ROOT)/kai-plugins/archive/local-fs-plugin/local-fs-plugin $(SIM)/orchestrator/.kai/plugins/local-fs/
-	cp $(ROOT)/kai-plugins/archive/local-fs-plugin/plugin.json     $(SIM)/orchestrator/.kai/plugins/local-fs/
-	mkdir -p $(SIM)/orchestrator/.kai/plugins/env
-	cp $(ROOT)/kai-plugins/secrets/env-plugin/env-plugin       $(SIM)/orchestrator/.kai/plugins/env/
-	cp $(ROOT)/kai-plugins/secrets/env-plugin/plugin.json      $(SIM)/orchestrator/.kai/plugins/env/
+	mkdir -p $(SIM)/orchestrator/.kai-code/plugins/conventional-commits
+	cp $(ROOT)/kai-plugins/gate/conventional-commits-gate/plugin        $(SIM)/orchestrator/.kai-code/plugins/conventional-commits/
+	cp $(ROOT)/kai-plugins/gate/conventional-commits-gate/plugin.json  $(SIM)/orchestrator/.kai-code/plugins/conventional-commits/
+	mkdir -p $(SIM)/orchestrator/.kai-code/plugins/forgejo
+	cp $(ROOT)/kai-plugins/gitprovider/forgejo-provider/forgejo-provider $(SIM)/orchestrator/.kai-code/plugins/forgejo/
+	cp $(ROOT)/kai-plugins/gitprovider/forgejo-provider/plugin.json     $(SIM)/orchestrator/.kai-code/plugins/forgejo/
+	mkdir -p $(SIM)/orchestrator/.kai-code/plugins/local-fs
+	cp $(ROOT)/kai-plugins/archive/local-fs-plugin/local-fs-plugin $(SIM)/orchestrator/.kai-code/plugins/local-fs/
+	cp $(ROOT)/kai-plugins/archive/local-fs-plugin/plugin.json     $(SIM)/orchestrator/.kai-code/plugins/local-fs/
+	mkdir -p $(SIM)/orchestrator/.kai-code/plugins/env
+	cp $(ROOT)/kai-plugins/secrets/env-plugin/env-plugin       $(SIM)/orchestrator/.kai-code/plugins/env/
+	cp $(ROOT)/kai-plugins/secrets/env-plugin/plugin.json      $(SIM)/orchestrator/.kai-code/plugins/env/
 
-dist-agent-kai:
-	@echo "=== Distributing kai runner plugin ==="
-	mkdir -p $(SIM)/agent-kai/.kai/plugins/kai
-	cp $(ROOT)/kai-plugins/runner/kai-plugin/kai-plugin   $(SIM)/agent-kai/.kai/plugins/kai/
-	cp $(ROOT)/kai-plugins/runner/kai-plugin/plugin.json  $(SIM)/agent-kai/.kai/plugins/kai/
+dist-agent-kai-code:
+	@echo "=== Distributing kai-code runner plugin ==="
+	mkdir -p $(SIM)/agent-kai-code/.kai-code/plugins/kai-code
+	cp $(ROOT)/kai-plugins/runner/kai-code-plugin/kai-code-plugin $(SIM)/agent-kai-code/.kai-code/plugins/kai-code/
+	cp $(ROOT)/kai-plugins/runner/kai-code-plugin/plugin.json     $(SIM)/agent-kai-code/.kai-code/plugins/kai-code/
 
 dist-agent-opencode:
 	@echo "=== Distributing opencode runner plugin ==="
-	mkdir -p $(SIM)/agent-opencode/.kai/plugins/opencode
-	cp $(ROOT)/kai-plugins/runner/opencode-plugin/opencode-plugin $(SIM)/agent-opencode/.kai/plugins/opencode/
-	cp $(ROOT)/kai-plugins/runner/opencode-plugin/plugin.json     $(SIM)/agent-opencode/.kai/plugins/opencode/
+	mkdir -p $(SIM)/agent-opencode/.kai-code/plugins/opencode
+	cp $(ROOT)/kai-plugins/runner/opencode-plugin/opencode-plugin $(SIM)/agent-opencode/.kai-code/plugins/opencode/
+	cp $(ROOT)/kai-plugins/runner/opencode-plugin/plugin.json     $(SIM)/agent-opencode/.kai-code/plugins/opencode/
 
 dist-agent-claude:
 	@echo "=== Distributing claude runner plugin ==="
-	mkdir -p $(SIM)/agent-claude/.kai/plugins/claude-code
-	cp $(ROOT)/kai-plugins/runner/claude-plugin/claude-plugin $(SIM)/agent-claude/.kai/plugins/claude-code/
-	cp $(ROOT)/kai-plugins/runner/claude-plugin/plugin.json   $(SIM)/agent-claude/.kai/plugins/claude-code/
+	mkdir -p $(SIM)/agent-claude/.kai-code/plugins/claude-code
+	cp $(ROOT)/kai-plugins/runner/claude-plugin/claude-plugin $(SIM)/agent-claude/.kai-code/plugins/claude-code/
+	cp $(ROOT)/kai-plugins/runner/claude-plugin/plugin.json   $(SIM)/agent-claude/.kai-code/plugins/claude-code/
 
 # --- Clean ---
 
 clean:
 	rm -rf $(SIM)/orchestrator
-	rm -rf $(SIM)/agent-kai
+	rm -rf $(SIM)/agent-kai-code
 	rm -rf $(SIM)/agent-opencode
 	rm -rf $(SIM)/agent-claude
 	rm -rf $(SIM)/config-service

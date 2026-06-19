@@ -133,7 +133,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		Message:   fmt.Sprintf("workspace ready at %s", sb.RepoDir),
 	})
 
-	runnerType := "kai"
+	runnerType := "kai-code"
 	if mission.Policy != nil && mission.Policy.Runner != "" {
 		runnerType = mission.Policy.Runner
 	}
@@ -249,8 +249,22 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 			}
 		}
 
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Message:   "remote origin removed — subprocess sandboxed from git push",
+		})
+
 		logGit("add", "-A")
-		logGit("commit", "-m", fmt.Sprintf("kai: %s", runner.TruncatePrompt(mission.Prompt)))
+		logGit("commit", "-m", fmt.Sprintf("kai-code: %s", runner.TruncatePrompt(mission.Prompt)))
+
+		// Re-add remote for push (was removed by sandbox to sandbox subprocess)
+		gitOut("remote", "add", "origin", mission.Workspace.RepoUrl)
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Message:   "remote origin restored — push access granted",
+		})
 
 		// Push with pull --rebase fallback for concurrent agents
 		pushOut, pushErr := gitOut("push", "origin", branch)
@@ -289,6 +303,14 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 				Message:   fmt.Sprintf("git push: %s", pushOut),
 			})
 		}
+
+		// Remove remote again — subprocess never has push access
+		gitOut("remote", "remove", "origin")
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Message:   "remote origin removed — push access revoked",
+		})
 	}
 
 	if mission.Policy.GetSaveState() {

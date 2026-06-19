@@ -57,6 +57,7 @@ type StepState struct {
 	GateResults []GateResult
 	Diff        string
 	BeforeSHA   string
+	Feedback    string
 }
 
 func NewRun(id string, p *Pipeline) (*Run, error) {
@@ -311,6 +312,14 @@ func (r *Run) SetStepBeforeSHA(id string, sha string) {
 	}
 }
 
+func (r *Run) SetStepFeedback(id string, feedback string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if state, ok := r.StepStates[id]; ok {
+		state.Feedback = feedback
+	}
+}
+
 func (r *Run) Snapshot() *Run {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -346,6 +355,7 @@ func (r *Run) Snapshot() *Run {
 			GateResults: gates,
 			Diff:        s.Diff,
 			BeforeSHA:   s.BeforeSHA,
+			Feedback:    s.Feedback,
 		}
 	}
 	return &Run{

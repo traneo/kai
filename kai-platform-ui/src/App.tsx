@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { fetchAgents, fetchPipelines, fetchStats, fetchPipelineDetail, fetchQueue, subscribeEvents } from './api'
 import type { Agent, PipelineRun, Stats, PipelineDetail, Page, QueueEntry } from './types'
 import { PipelineDetailView } from './components/PipelineDetailView'
-import { LandingPage } from './components/LandingPage'
 import { NewPipeline } from './components/NewPipeline'
 import { AuditLog } from './components/AuditLog'
 import { SecretsPage } from './components/SecretsPage'
@@ -52,7 +51,7 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const [page, setPage] = useState<Page>('landing')
+  const [page, setPage] = useState<Page>('dashboard')
   const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null)
   const [pipelineDetail, setPipelineDetail] = useState<PipelineDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -154,10 +153,6 @@ export default function App() {
   }, [selectedPipeline])
 
   function handlePipelineCreated(_runId: string) {
-  }
-
-  if (page === 'landing') {
-    return <LandingPage onEnter={() => navigateTo('dashboard')} onNavigate={navigateTo} />
   }
 
   if (page === 'detail') {

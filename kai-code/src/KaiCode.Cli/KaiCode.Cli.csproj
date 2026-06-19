@@ -17,11 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\kai\src\kai.Core\kai.Core.csproj" />
-    <ProjectReference Include="..\..\..\kai\src\kai.LLM\kai.LLM.csproj" />
-    <ProjectReference Include="..\..\..\kai\src\kai.Git\kai.Git.csproj" />
-    <ProjectReference Include="..\..\..\kai\src\kai.Orchestrator\kai.Orchestrator.csproj" />
-    <ProjectReference Include="..\..\..\kai\src\kai.Agents\kai.Agents.csproj" />
+    <ProjectReference Include="..\KaiCode.Core\KaiCode.Core.csproj" />
+    <ProjectReference Include="..\KaiCode.LLM\KaiCode.LLM.csproj" />
+    <ProjectReference Include="..\KaiCode.Git\KaiCode.Git.csproj" />
+    <ProjectReference Include="..\KaiCode.Orchestrator\KaiCode.Orchestrator.csproj" />
+    <ProjectReference Include="..\KaiCode.Agents\KaiCode.Agents.csproj" />
   </ItemGroup>
 
 </Project>

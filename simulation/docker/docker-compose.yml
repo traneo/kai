@@ -21,11 +21,11 @@ services:
       config-service:
         condition: service_started
 
-  agent-kai:
+  agent-kai-code:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.agent-kai
-    env_file: ../agent-kai/.env
+      dockerfile: docker/Dockerfile.agent-kai-code
+    env_file: ../agent-kai-code/.env
     ports:
       - "50052:50052"
     depends_on:

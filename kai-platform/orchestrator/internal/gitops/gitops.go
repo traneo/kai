@@ -106,7 +106,7 @@ func (c *Client) SetupGitConfig(ctx context.Context) error {
 }
 
 func (c *Client) StageAll(ctx context.Context) error {
-	return c.exec(ctx, c.repoDir, "git", "add", "-A", "--", ":!.kai/", ":!kai.json")
+	return c.exec(ctx, c.repoDir, "git", "add", "-A", "--", ":!.kai-code/", ":!kai-code.json")
 }
 
 func (c *Client) Commit(ctx context.Context, message string) error {
