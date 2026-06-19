@@ -94,6 +94,7 @@ type stepDetailResponse struct {
 	StartedAt   *string              `json:"started_at,omitempty"`
 	Policy      policyResponse       `json:"policy,omitempty"`
 	GateResults []gateResultResponse `json:"gate_results,omitempty"`
+	Diff        string               `json:"diff,omitempty"`
 }
 
 type pipelineDetailResponse struct {
@@ -166,6 +167,7 @@ func HandlePipelineDetail(d *Deps, w http.ResponseWriter, r *http.Request, id st
 				TimeoutSeconds:    s.Policy.TimeoutSeconds,
 			},
 			GateResults: gates,
+			Diff:        state.Diff,
 		}
 		steps = append(steps, detail)
 	}
@@ -265,6 +267,14 @@ func HandleCancel(d *Deps, w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{"status": "cancelled"})
+}
+
+func HandleRetryStep(d *Deps, w http.ResponseWriter, r *http.Request, id, step string) {
+	if err := d.Coordinator.RetryStep(id, step); err != nil {
+		writeError(w, http.StatusBadRequest, "%v", err)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "retrying"})
 }
 
 func HandlePipelineYAML(d *Deps, w http.ResponseWriter, r *http.Request, id string) {

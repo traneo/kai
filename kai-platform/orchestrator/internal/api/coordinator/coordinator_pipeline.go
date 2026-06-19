@@ -123,6 +123,7 @@ func (c *Coordinator) finishRun(run *workflow.Run) {
 			run.OutputURL = result.URL
 			c.printf("PR created for run %s: %s (branch: %s)", run.ID, result.URL, result.Branch)
 		}
+		c.saveRun(run)
 
 	default:
 		hasChanges, err := gc.HasChanges(ctx)
@@ -141,6 +142,7 @@ func (c *Coordinator) finishRun(run *workflow.Run) {
 		}
 		run.OutputSHA = result.CommitSHA
 		c.printf("committed for run %s (branch: %s, sha: %s)", run.ID, result.Branch, result.CommitSHA)
+		c.saveRun(run)
 	}
 }
 
@@ -295,6 +297,13 @@ func (c *Coordinator) dispatchStepToAgent(run *workflow.Run, stepID, agentID str
 	missionID := fmt.Sprintf("%s-%s", run.ID, stepID)
 
 	gc := c.GetGitClient(run.ID)
+	if gc != nil {
+		if sha, err := gc.GetCurrentCommit(context.Background()); err == nil {
+			run.SetStepBeforeSHA(stepID, sha)
+		}
+	}
+	c.saveRun(run)
+
 	var ws *kaipb.Workspace
 	if gc != nil {
 		repoURL := run.Pipeline.Repo.URL

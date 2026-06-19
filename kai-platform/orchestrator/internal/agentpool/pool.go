@@ -272,6 +272,23 @@ func (p *Pool) AgentClient(addr string) (kaipb.AgentClient, error) {
 
 
 
+func (p *Pool) CancelMission(ctx context.Context, agentID, missionID string) error {
+	p.mu.RLock()
+	rec, ok := p.agents[agentID]
+	p.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("agent %s not found", agentID)
+	}
+
+	client, err := p.AgentClient(rec.Addr)
+	if err != nil {
+		return fmt.Errorf("get client for %s: %w", agentID, err)
+	}
+
+	_, err = client.CancelMission(ctx, &kaipb.MissionID{Id: missionID})
+	return err
+}
+
 func (p *Pool) WaitForIdleAgent(ctx context.Context) string {
 	for {
 		if id, ok := p.GetIdleAgent(); ok {

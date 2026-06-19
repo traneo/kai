@@ -9,6 +9,16 @@ obj/
 *.dylib
 *.test
 *.out
+kai-platform/server
+kai-platform/agent/agent
+kai-cli-control/kaictl
+kai-plugins/archive/local-fs-plugin/local-fs-plugin
+kai-plugins/gate/conventional-commits-gate/plugin
+kai-plugins/gitprovider/forgejo-provider/forgejo-provider
+kai-plugins/runner/claude-plugin/claude-plugin
+kai-plugins/runner/kai-plugin/kai-plugin
+kai-plugins/runner/opencode-plugin/opencode-plugin
+kai-plugins/secrets/env-plugin/env-plugin
 
 # Dependencies
 node_modules/
@@ -26,8 +36,6 @@ TestResults/
 .env
 .env.local
 .env.*.local
-kaictl
-kaictl.exe
 
 # OS
 .DS_Store

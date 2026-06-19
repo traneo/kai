@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/audit"
 	"kaiplatform.com/orchestrator/internal/gitops"
 	"kaiplatform.com/orchestrator/internal/gitprovider"
+	"kaiplatform.com/orchestrator/internal/runstore"
 	"kaiplatform.com/orchestrator/internal/secrets"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/workflow"
@@ -90,6 +92,7 @@ type Coordinator struct {
 	secMgr         secrets.Manager
 	secretStore    SecretStore
 	gitProviderReg *gitprovider.Registry
+	runStore       runstore.Store
 
 	agentPools   map[string]*AgentPoolConfig
 	agentPoolsMu sync.RWMutex
@@ -147,6 +150,38 @@ func (c *Coordinator) SetSecretsManager(mgr secrets.Manager) {
 
 func (c *Coordinator) SetGitProviderRegistry(reg *gitprovider.Registry) {
 	c.gitProviderReg = reg
+}
+
+func (c *Coordinator) SetRunStore(s runstore.Store) {
+	c.runStore = s
+}
+
+func (c *Coordinator) saveRun(run *workflow.Run) {
+	if c.runStore == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.runStore.Save(ctx, run); err != nil {
+		c.logf("save run %s: %v", run.ID, err)
+	}
+}
+
+func (c *Coordinator) RestoreRuns(ctx context.Context) {
+	if c.runStore == nil {
+		return
+	}
+	runs, err := c.runStore.LoadAll(ctx)
+	if err != nil {
+		log.Printf("restore runs: %v", err)
+		return
+	}
+	c.mu.Lock()
+	for _, run := range runs {
+		c.runs[run.ID] = run
+		c.printf("restored run %s (status=%s, project=%s)", run.ID, run.Status, run.Pipeline.Project)
+	}
+	c.mu.Unlock()
 }
 
 func (c *Coordinator) SetSecretStore(store SecretStore) {
@@ -209,6 +244,8 @@ func (c *Coordinator) CreateRun(id string, p *workflow.Pipeline, rawYAML string)
 	run.RawYAML = rawYAML
 	run.Start()
 	c.runs[id] = run
+
+	c.saveRun(run)
 
 	c.auditLog(audit.EventPipelineCreated, id, "", "", "", map[string]any{"project": p.Project})
 	c.publish(map[string]any{"type": "pipeline_created", "id": id, "project": p.Project})

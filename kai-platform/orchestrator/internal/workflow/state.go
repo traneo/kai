@@ -55,6 +55,8 @@ type StepState struct {
 	CompletedAt *time.Time
 	Error       string
 	GateResults []GateResult
+	Diff        string
+	BeforeSHA   string
 }
 
 func NewRun(id string, p *Pipeline) (*Run, error) {
@@ -80,6 +82,22 @@ func NewRun(id string, p *Pipeline) (*Run, error) {
 		StepStates: steps,
 		CreatedAt:  now,
 		UpdatedAt:  now,
+	}, nil
+}
+
+// RestoreRun creates a Run from previously persisted state (recovered after restart).
+func RestoreRun(id string, p *Pipeline, rawYAML string, states map[string]*StepState) (*Run, error) {
+	dag, err := BuildDAG(p)
+	if err != nil {
+		return nil, fmt.Errorf("build dag: %w", err)
+	}
+
+	return &Run{
+		ID:         id,
+		Pipeline:   p,
+		DAG:        dag,
+		StepStates: states,
+		RawYAML:    rawYAML,
 	}, nil
 }
 
@@ -226,6 +244,36 @@ func (r *Run) BlockStep(id string, reason string) {
 	}
 }
 
+func (r *Run) ResetStep(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	state, ok := r.StepStates[id]
+	if !ok || state.Status != StepFailed {
+		return
+	}
+
+	state.Status = StepPending
+	state.Retries = 0
+	state.Error = ""
+	state.NextRetryAt = nil
+	r.UpdatedAt = time.Now().UTC()
+
+	// If this was the only failed step, transition back to running.
+	hasFailed := false
+	for _, s := range r.StepStates {
+		if s.Status == StepFailed {
+			hasFailed = true
+			break
+		}
+	}
+	if !hasFailed && r.Status == PipelineFailed {
+		r.Status = PipelineRunning
+	}
+
+	r.evaluatePipelineStatusLocked()
+}
+
 func (r *Run) Cancel() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -244,6 +292,22 @@ func (r *Run) SetGateResults(id string, gates []GateResult) {
 	defer r.mu.Unlock()
 	if state, ok := r.StepStates[id]; ok {
 		state.GateResults = gates
+	}
+}
+
+func (r *Run) SetStepDiff(id string, diff string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if state, ok := r.StepStates[id]; ok {
+		state.Diff = diff
+	}
+}
+
+func (r *Run) SetStepBeforeSHA(id string, sha string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if state, ok := r.StepStates[id]; ok {
+		state.BeforeSHA = sha
 	}
 }
 
@@ -280,6 +344,8 @@ func (r *Run) Snapshot() *Run {
 			CompletedAt: completedAt,
 			Error:       s.Error,
 			GateResults: gates,
+			Diff:        s.Diff,
+			BeforeSHA:   s.BeforeSHA,
 		}
 	}
 	return &Run{

@@ -25,6 +25,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/audit"
 	"kaiplatform.com/orchestrator/internal/auth"
 	"kaiplatform.com/orchestrator/internal/gitprovider"
+	"kaiplatform.com/orchestrator/internal/runstore"
 	"kaiplatform.com/orchestrator/internal/secrets"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/validation/gates"
@@ -76,6 +77,10 @@ func startServer(httpPort, configServiceURL string) {
 	archiveStore := archive.NewStoreFromEnv(ctx)
 	defer archiveStore.Close()
 
+	runStore := runstore.NewStoreFromEnv(ctx)
+	defer runStore.Close()
+	defer archiveStore.Close()
+
 	secretStore := api.NewMemorySecretStore()
 
 	srv := api.NewServer(valRunner)
@@ -85,6 +90,8 @@ func startServer(httpPort, configServiceURL string) {
 	srv.GetCoordinator().SetConversationStore(convStore)
 	srv.GetCoordinator().SetSecretsManager(secMgr)
 	srv.GetCoordinator().SetGitProviderRegistry(gitProvReg)
+	srv.GetCoordinator().SetRunStore(runStore)
+	srv.GetCoordinator().RestoreRuns(ctx)
 	srv.SetSecretStore(secretStore)
 	srv.StartPool()
 	defer srv.StopPool()

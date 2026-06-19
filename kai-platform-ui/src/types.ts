@@ -54,6 +54,7 @@ export interface StepDetail {
   started_at: string | null
   policy?: StepPolicy
   gate_results?: GateResult[]
+  diff?: string
 }
 
 export interface PipelineDetail {

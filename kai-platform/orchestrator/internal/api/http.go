@@ -92,6 +92,9 @@ func (h *HTTPServer) Handler() http.Handler {
 		case r.Method == "POST" && matchPath(r.URL.Path, "/api/pipelines/{id}/steps/{step}/approve"):
 			id, step := extractPathParams(r.URL.Path, "/api/pipelines/{id}/steps/{step}/approve")
 			handlers.HandleApprove(d, w, r, id, step)
+		case r.Method == "POST" && matchPath(r.URL.Path, "/api/pipelines/{id}/steps/{step}/retry"):
+			id, step := extractPathParams(r.URL.Path, "/api/pipelines/{id}/steps/{step}/retry")
+			handlers.HandleRetryStep(d, w, r, id, step)
 		case r.Method == "GET" && r.URL.Path == "/api/secrets":
 			handlers.HandleSecretsList(d, w, r)
 		case r.Method == "POST" && r.URL.Path == "/api/secrets":

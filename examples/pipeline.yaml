@@ -1,8 +1,14 @@
 version: 1
 project: MS-1986
 output:
-  type: branch
-  branch_prefix: feat/kai-
+  type: pr
+  branch_prefix: feat/kai-app-
+
+repo:
+  url: http://192.168.0.22:3000/developer/kai-demo.git
+  base_branch: main
+  provider: forgejo
+  token_ref: forgejo-token
 
 steps:
   - id: scaffold
@@ -11,7 +17,7 @@ steps:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
       allowed_commands: [dotnet new *, dotnet build *, mkdir *]
       allowed_dirs: [./]
-    approval: optional
+    approval: required
 
   - id: domain-models
     depends_on: [scaffold]
@@ -20,7 +26,7 @@ steps:
       allowed_tools: [read_file, write_file, glob, search, list_dir]
       allowed_dirs: [./internal]
       save_state: true
-    approval: optional
+    approval: required
 
   - id: implement-repo
     depends_on: [domain-models]

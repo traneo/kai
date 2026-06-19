@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { PipelineDetail, StepDetail, ConversationEntry } from '../types'
-import { approveStep, cancelPipeline, fetchPipelineYAML, fetchConversation, subscribeEvents } from '../api'
+import { approveStep, cancelPipeline, fetchPipelineYAML, fetchConversation, subscribeEvents, retryStep } from '../api'
 
 interface Props {
   detail: PipelineDetail
@@ -97,6 +97,13 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
     } catch { /* ignore */ }
   }
 
+  async function handleRetryStep(stepId: string) {
+    try {
+      await retryStep(detail.id, stepId)
+      onUpdated()
+    } catch { /* ignore */ }
+  }
+
   const canCancel = (detail.status === 'running' || detail.status === 'blocked') && !cancelling
 
   return (
@@ -120,9 +127,12 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
 
       {detail.error && <p className="error">{detail.error}</p>}
 
-      <DAGView steps={detail.steps} onStepClick={(s) => {
-        if (s.status === 'blocked') setApprovalStep(s)
-      }} currentStepId={firstRunningOrPending?.id} />
+      <DAGView steps={detail.steps} currentStepId={firstRunningOrPending?.id}
+        onStepClick={(s) => {
+          if (s.status === 'blocked') setApprovalStep(s)
+        }}
+        onRetry={(s) => handleRetryStep(s.id)}
+      />
 
       <div className="detail-tab-bar">
         <button
@@ -158,6 +168,7 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
                 key={s.id}
                 step={s}
                 onApprove={() => setApprovalStep(s)}
+                onRetry={handleRetryStep}
                 onSelect={() => setSelectedStep(s.id)}
                 selected={selectedStep === s.id}
               />
@@ -213,9 +224,10 @@ export function PipelineDetailView({ detail, onUpdated }: Props) {
   )
 }
 
-function DAGView({ steps, onStepClick, currentStepId }: {
+function DAGView({ steps, onStepClick, onRetry, currentStepId }: {
   steps: StepDetail[]
   onStepClick: (s: StepDetail) => void
+  onRetry?: (s: StepDetail) => void
   currentStepId?: string
 }) {
   const levels = layoutDAG(steps)
@@ -241,6 +253,11 @@ function DAGView({ steps, onStepClick, currentStepId }: {
                 }}>
                   <span className="dag-node-status">{step.status}</span>
                   <span className="dag-node-id">{step.id}</span>
+                  {step.status === 'failed' && onRetry && (
+                    <button className="dag-node-retry" onClick={(e) => { e.stopPropagation(); onRetry(step) }} title="Retry step">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -279,9 +296,10 @@ function layoutDAG(steps: StepDetail[]): StepDetail[][] {
   return levels
 }
 
-function StepCard({ step, onApprove, onSelect, selected }: {
+function StepCard({ step, onApprove, onRetry, onSelect, selected }: {
   step: StepDetail
   onApprove: () => void
+  onRetry?: (id: string) => void
   onSelect: () => void
   selected: boolean
 }) {
@@ -374,7 +392,166 @@ function StepCard({ step, onApprove, onSelect, selected }: {
             Review
           </button>
         )}
+        {step.status === 'failed' && onRetry && (
+          <button className="btn-small btn-retry" onClick={(e) => { e.stopPropagation(); onRetry(step.id) }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+            Retry
+          </button>
+        )}
       </div>
+    </div>
+  )
+}
+
+interface DiffLine {
+  type: 'add' | 'del' | 'ctx' | 'hdr'
+  text: string
+  lineNum?: number
+}
+
+interface DiffFile {
+  file: string
+  lines: DiffLine[]
+  added: number
+  deleted: number
+}
+
+interface FileTreeNode {
+  name: string
+  path: string
+  type: 'file' | 'dir'
+  children: FileTreeNode[]
+  added: number
+  deleted: number
+}
+
+function buildFileTree(files: DiffFile[]): FileTreeNode {
+  const root: FileTreeNode = { name: '', path: '', type: 'dir', children: [], added: 0, deleted: 0 }
+
+  for (const f of files) {
+    const parts = f.file.split('/')
+    let node = root
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      const isFile = i === parts.length - 1
+      let child = node.children.find(c => c.name === part)
+      if (!child) {
+        child = {
+          name: part,
+          path: isFile ? f.file : parts.slice(0, i + 1).join('/'),
+          type: isFile ? 'file' : 'dir',
+          children: [],
+          added: 0,
+          deleted: 0,
+        }
+        node.children.push(child)
+      }
+      child.added += f.added
+      child.deleted += f.deleted
+      node = child
+    }
+  }
+
+  return root
+}
+
+function parseDiffFiles(diff: string): DiffFile[] {
+  const files: DiffFile[] = []
+  let current: DiffFile | null = null
+  let oldLine = 0
+  let newLine = 0
+
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('diff --git a/')) {
+      const m = line.match(/diff --git a\/(.*?) b\//)
+      if (current) files.push(current)
+      current = { file: m ? m[1] : line, lines: [], added: 0, deleted: 0 }
+      current.lines.push({ type: 'hdr', text: line })
+    } else if (!current) {
+      continue
+    } else if (line.startsWith('@@')) {
+      const mh = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+      if (mh) newLine = parseInt(mh[1], 10)
+      current.lines.push({ type: 'hdr', text: line })
+    } else if (line.startsWith('+++ ') || line.startsWith('--- ') || line.startsWith('index ') || line.startsWith('new file') || line.startsWith('deleted file')) {
+      current.lines.push({ type: 'hdr', text: line })
+    } else if (line.startsWith('+')) {
+      current.lines.push({ type: 'add', text: line, lineNum: newLine })
+      current.added++
+      newLine++
+    } else if (line.startsWith('-')) {
+      current.lines.push({ type: 'del', text: line })
+      current.deleted++
+    } else {
+      current.lines.push({ type: 'ctx', text: line, lineNum: newLine })
+      newLine++
+    }
+  }
+  if (current) files.push(current)
+  return files
+}
+
+function FileTreeItem({ node, depth, selectedFile, onSelect, expandedDirs, onToggle }: {
+  node: FileTreeNode
+  depth: number
+  selectedFile: string | null
+  onSelect: (path: string) => void
+  expandedDirs: Set<string>
+  onToggle: (path: string) => void
+}) {
+  const isExpanded = expandedDirs.has(node.path)
+
+  function handleClick() {
+    if (node.type === 'dir') {
+      onToggle(node.path)
+    } else {
+      onSelect(node.path)
+    }
+  }
+
+  const total = node.added + node.deleted
+
+  return (
+    <div>
+      <div
+        className={`approval-filetree-item ${node.type === 'file' && selectedFile === node.path ? 'selected' : ''}`}
+        style={{ paddingLeft: 12 + depth * 16 }}
+        onClick={handleClick}
+      >
+        {node.type === 'dir' ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 4 }}>
+            {isExpanded
+              ? <><path d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v1" /><path d="M5 15h14l-3 3 3 3" /></>
+              : <><path d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5z" /></>
+            }
+          </svg>
+        ) : (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 4 }}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+          </svg>
+        )}
+        <span className="approval-filetree-name">{node.name}</span>
+        <span className="approval-filetree-stats">
+          {node.added > 0 && <span className="stat-added">+{node.added}</span>}
+          {node.deleted > 0 && <span className="stat-deleted">-{node.deleted}</span>}
+          <span className="stat-total">{total}</span>
+        </span>
+      </div>
+      {node.type === 'dir' && isExpanded && (
+        <div>
+          {node.children.map(child => (
+            <FileTreeItem
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedFile={selectedFile}
+              onSelect={onSelect}
+              expandedDirs={expandedDirs}
+              onToggle={onToggle}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -386,39 +563,145 @@ function ApprovalDialog({ step, onApprove, onReject, onClose }: {
   onClose: () => void
 }) {
   const [message, setMessage] = useState('')
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+
+  const diffFiles = step.diff ? parseDiffFiles(step.diff) : []
+  const gates = step.gate_results || []
+
+  const fileTree = diffFiles.length > 0 ? buildFileTree(diffFiles) : null
+
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
+    if (!fileTree) return new Set()
+    const s = new Set<string>()
+    function collectDirs(n: FileTreeNode) {
+      if (n.type === 'dir') {
+        s.add(n.path)
+        n.children.forEach(collectDirs)
+      }
+    }
+    fileTree.children.forEach(collectDirs)
+    return s
+  })
+
+  function toggleDir(path: string) {
+    setExpandedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!selectedFile && diffFiles.length > 0) {
+      setSelectedFile(diffFiles[0].file)
+    }
+  }, [selectedFile, diffFiles])
+
+  const activeFile = diffFiles.find(f => f.file === selectedFile)
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Escape') onClose()
   }
 
+  function gateIcon(status: string) {
+    if (status === 'passed') {
+      return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+    }
+    if (status === 'failed') {
+      return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+    }
+    return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose} onKeyDown={handleKey} tabIndex={0}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 9v4" /><path d="M12 17h.01" />
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          </svg>
-          <h3 style={{ margin: 0 }}>Review Step: {step.id}</h3>
+      <div className="approval-modal-inner" onClick={e => e.stopPropagation()}>
+        {/* Top bar: header + badges */}
+        <div className="approval-topbar">
+          <div className="approval-topbar-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 9v4" /><path d="M12 17h.01" />
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+            <span className="approval-topbar-step">Review: <strong>{step.id}</strong></span>
+            <span className="approval-topbar-prompt">{step.prompt}</span>
+          </div>
+          <div className="approval-topbar-badges">
+            {gates.map(g => (
+              <span key={g.gate} className={`gate-badge ${g.status}`}>
+                {gateIcon(g.status)}
+                {g.gate}
+              </span>
+            ))}
+          </div>
         </div>
-        <p className="step-prompt">{step.prompt}</p>
-        <textarea
-          className="yaml-input"
-          placeholder="Optional review message..."
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          rows={3}
-        />
-        <div className="modal-actions">
-          <button className="btn btn-approve-action" onClick={() => onApprove(message)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><polyline points="20 6 9 17 4 12" /></svg>
-            Approve
-          </button>
-          <button className="btn btn-reject" onClick={() => onReject(message)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            Reject
-          </button>
-          <button className="btn btn-cancel" onClick={onClose}>Cancel</button>
+
+        {/* Body: file tree + diff */}
+        <div className="approval-body">
+          <div className="approval-filetree">
+            <div className="approval-filetree-title">Files</div>
+            <div className="approval-filetree-list">
+              {fileTree && fileTree.children.map(child => (
+                <FileTreeItem
+                  key={child.path}
+                  node={child}
+                  depth={0}
+                  selectedFile={selectedFile}
+                  onSelect={setSelectedFile}
+                  expandedDirs={expandedDirs}
+                  onToggle={toggleDir}
+                />
+              ))}
+              {!fileTree && <div className="approval-filetree-empty">No changes</div>}
+            </div>
+          </div>
+
+          <div className="approval-diff">
+            {activeFile ? (
+              <div className="diff-view">
+                <div className="diff-view-header">{activeFile.file}</div>
+                <div className="diff-view-content">
+                  {activeFile.lines.map((l, li) => {
+                    if (l.type === 'hdr') return null
+                    return (
+                      <div key={li} className={`diff-line diff-${l.type}`}>
+                        {l.lineNum !== undefined && <span className="diff-ln">{l.lineNum}</span>}
+                        {l.lineNum === undefined && <span className="diff-ln diff-ln-empty" />}
+                        {l.type !== 'ctx' && <span className="diff-prefix">{l.text[0]}</span>}
+                        {l.type === 'ctx' && <span className="diff-prefix diff-prefix-ctx" />}
+                        <span className="diff-text">{l.type === 'ctx' || l.type === 'add' || l.type === 'del' ? l.text.slice(1) : l.text}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="diff-empty">No file selected</div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom bar: message + actions */}
+        <div className="approval-bottombar">
+          <textarea
+            className="approval-msg"
+            placeholder="Optional review message..."
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            rows={1}
+          />
+          <div className="approval-actions">
+            <button className="btn btn-approve-action" onClick={() => onApprove(message)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><polyline points="20 6 9 17 4 12" /></svg>
+              Approve
+            </button>
+            <button className="btn btn-reject" onClick={() => onReject(message)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 4 }}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              Reject
+            </button>
+            <button className="btn btn-cancel" onClick={onClose}>Cancel</button>
+          </div>
         </div>
       </div>
     </div>

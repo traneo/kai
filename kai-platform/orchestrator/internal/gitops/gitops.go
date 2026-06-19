@@ -202,6 +202,37 @@ func (c *Client) GetDiff(ctx context.Context) (string, error) {
 	return diff, nil
 }
 
+// GetBranchDiff returns the diff of all changes on the current branch compared to the base branch.
+// For repos with a remote, it compares against origin/<base> (agent commits are pushed).
+// For local repos, it falls back to working tree diff (agent writes files directly).
+func (c *Client) GetBranchDiff(ctx context.Context) (string, error) {
+	base := c.cfg.BaseBranch
+	if base == "" {
+		base = "main"
+	}
+
+	var ref string
+	if c.cfg.RepoURL != "" {
+		ref = "origin/" + base
+	} else {
+		ref = base
+	}
+
+	diff, err := c.output(ctx, c.repoDir, "git", "diff", "--diff-filter=AM", ref+"...HEAD")
+	if err != nil || diff == "" {
+		// Fall back to working tree diff for local repos (agents write without committing)
+		wdiff, werr := c.GetDiff(ctx)
+		if werr == nil && wdiff != "" {
+			return wdiff, nil
+		}
+		if err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+	return diff, nil
+}
+
 func (c *Client) HasChanges(ctx context.Context) (bool, error) {
 	out, err := c.output(ctx, c.repoDir, "git", "status", "--porcelain")
 	if err != nil {
@@ -220,6 +251,12 @@ func (c *Client) GetCurrentCommit(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// GetDiffBetween returns the diff of changes between two commits (from...to).
+// This shows only what changed in that range, suitable for per-step review.
+func (c *Client) GetDiffBetween(ctx context.Context, from, to string) (string, error) {
+	return c.output(ctx, c.repoDir, "git", "diff", "--diff-filter=AM", from+"..."+to)
 }
 
 func (c *Client) Cleanup(ctx context.Context) {

@@ -66,6 +66,7 @@ func (c *Coordinator) HandleMissionResult(ctx context.Context, runID, stepID, ag
 
 		c.logf("RUN %s step %s: agent failed (exit=%d), status=%v", runID, stepID, result.ExitCode, stepState.Status)
 		c.printf("step %s failed, retries=%d/%d", stepID, stepState.Retries, stepState.Step.Policy.MaxRetries)
+		c.saveRun(run)
 		c.publishAfterStateChange(run)
 		c.DrainQueue()
 		return
@@ -108,6 +109,21 @@ func (c *Coordinator) HandleMissionResult(ctx context.Context, runID, stepID, ag
 		needsApproval := state.Step.RequiresApproval()
 		c.logf("RUN %s step %s: all gates passed, needsApproval=%v", runID, stepID, needsApproval)
 		if needsApproval {
+			if gc := c.GetGitClient(runID); gc != nil {
+				beforeSHA := state.BeforeSHA
+				var diff string
+				var err error
+				if beforeSHA != "" {
+					diff, err = gc.GetDiffBetween(ctx, beforeSHA, "HEAD")
+				} else {
+					diff, err = gc.GetBranchDiff(ctx)
+				}
+				if err == nil {
+					run.SetStepDiff(stepID, diff)
+				} else {
+					c.printf("get diff for step %s: %v", stepID, err)
+				}
+			}
 			run.BlockStep(stepID, "awaiting human approval")
 			c.auditLog(audit.EventStepBlocked, runID, stepID, agentID, "awaiting human approval", nil)
 			c.publish(map[string]any{"type": "step_blocked", "run_id": runID, "step_id": stepID})
@@ -150,6 +166,7 @@ func (c *Coordinator) HandleMissionResult(ctx context.Context, runID, stepID, ag
 		c.DrainQueue()
 	}
 
+	c.saveRun(run)
 	c.publishAfterStateChange(run)
 }
 
@@ -191,9 +208,39 @@ func (c *Coordinator) CancelRun(id string) error {
 	if run.Status != workflow.PipelineRunning {
 		return fmt.Errorf("run %s is not running (status: %s)", id, run.Status)
 	}
+
+	snap := run.Snapshot()
+	for stepID, state := range snap.StepStates {
+		if state.Status == workflow.StepRunning && state.AssignedTo != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			missionID := fmt.Sprintf("%s-%s", id, stepID)
+			if err := c.pool.CancelMission(ctx, state.AssignedTo, missionID); err != nil {
+				c.printf("cancel mission for step %s agent %s: %v", stepID, state.AssignedTo, err)
+			}
+			cancel()
+		}
+	}
+
 	run.Cancel()
+	c.saveRun(run)
 	c.auditLog(audit.EventSystem, id, "", "", "pipeline cancelled", nil)
 	c.publish(map[string]any{"type": "pipeline_cancelled", "run_id": id})
+	return nil
+}
+
+func (c *Coordinator) RetryStep(runID, stepID string) error {
+	c.mu.Lock()
+	run, ok := c.runs[runID]
+	c.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("run %s not found", runID)
+	}
+
+	run.ResetStep(stepID)
+	c.saveRun(run)
+	c.auditLog(audit.EventSystem, runID, stepID, "", fmt.Sprintf("manual retry of step %s", stepID), nil)
+	c.publish(map[string]any{"type": "step_retried", "run_id": runID, "step_id": stepID})
+	c.tryDispatchSteps(run)
 	return nil
 }
 

@@ -64,6 +64,15 @@ export async function fetchAuditLog(limit = 50, runId?: string) {
   return res.json()
 }
 
+export async function retryStep(pipelineId: string, stepId: string) {
+  const res = await fetch(`${API}/pipelines/${pipelineId}/steps/${stepId}/retry`, { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'failed to retry step')
+  }
+  return res.json()
+}
+
 export async function cancelPipeline(id: string) {
   const res = await fetch(`${API}/pipelines/${id}/cancel`, { method: 'POST' })
   if (!res.ok) {
