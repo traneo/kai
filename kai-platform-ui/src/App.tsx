@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { fetchAgents, fetchPipelines, fetchStats, fetchPipelineDetail, fetchQueue, subscribeEvents } from './api'
 import type { Agent, PipelineRun, Stats, PipelineDetail, Page, QueueEntry } from './types'
 import { PipelineDetailView } from './components/PipelineDetailView'
-import { NewPipeline } from './components/NewPipeline'
+
 import { AuditLog } from './components/AuditLog'
 import { SecretsPage } from './components/SecretsPage'
 import { AgentDetailPanel } from './components/AgentDetailPanel'
@@ -152,9 +152,6 @@ export default function App() {
     }
   }, [selectedPipeline])
 
-  function handlePipelineCreated(_runId: string) {
-  }
-
   if (page === 'detail') {
     return (
       <div className="app">
@@ -179,27 +176,6 @@ export default function App() {
         {detailLoading && <p className="muted">Loading...</p>}
         {!error && !detailLoading && !pipelineDetail && <p className="muted">Unable to load pipeline details</p>}
         {pipelineDetail && <PipelineDetailView detail={pipelineDetail} onUpdated={refreshDetail} />}
-      </div>
-    )
-  }
-
-  if (page === 'new') {
-    return (
-      <div className="app">
-        <header className="header">
-          <div className="header-brand">
-            <div className="header-logo">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
-                <line x1="12" y1="22" x2="12" y2="15.5" />
-                <polyline points="22 8.5 12 15.5 2 8.5" />
-              </svg>
-            </div>
-            <h1><span>kai</span> Platform</h1>
-          </div>
-          <NavBar current={page} onNavigate={navigateTo} />
-        </header>
-        <NewPipeline onCreated={handlePipelineCreated} />
       </div>
     )
   }

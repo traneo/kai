@@ -8,7 +8,7 @@ SIM  := $(ROOT)/simulation
         dist-agent-kai-code dist-agent-opencode dist-agent-claude dist-orchestrator \
         check-prereqs proto npm-install
 
-build: build-observability build-agent build-orchestrator build-config-service build-kaictl build-ui build-observability-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
+build: build-observability build-agent build-orchestrator build-config-service build-plan-builder build-kaictl build-ui build-observability-ui build-plan-builder-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
 
 start-dev: build
 	./start-dev.sh
@@ -161,6 +161,7 @@ npm-install:
 	@echo "=== Installing UI dependencies ==="
 	cd $(ROOT)/kai-platform-ui && npm install
 	cd $(ROOT)/kai-observability-ui && npm install
+	cd $(ROOT)/kai-plan-builder-ui && npm install
 
 # --- Observability ---
 
@@ -188,6 +189,11 @@ build-config-service: check-prereqs
 	mkdir -p $(SIM)/config-service
 	cd $(ROOT)/kai-config-service/cmd/server && go build -o $(SIM)/config-service/config-service .
 
+build-plan-builder: check-prereqs
+	@echo "=== Building plan-builder ==="
+	mkdir -p $(SIM)/plan-builder
+	cd $(ROOT)/kai-plan-builder/cmd/server && go build -o $(SIM)/plan-builder/plan-builder .
+
 build-kaictl: check-prereqs
 	@echo "=== Building kaictl ==="
 	cd $(ROOT)/kai-cli-control && go build -o $(SIM)/kaictl .
@@ -203,6 +209,11 @@ build-observability-ui: npm-install check-prereqs
 	@echo "=== Building observability UI ==="
 	mkdir -p $(SIM)/ui-observability
 	cd $(ROOT)/kai-observability-ui && npm run build && rm -rf $(SIM)/ui-observability/dist && cp -r dist $(SIM)/ui-observability/dist
+
+build-plan-builder-ui: npm-install check-prereqs
+	@echo "=== Building plan-builder UI ==="
+	mkdir -p $(SIM)/ui-plan-builder
+	cd $(ROOT)/kai-plan-builder-ui && npm run build && rm -rf $(SIM)/ui-plan-builder/dist && cp -r dist $(SIM)/ui-plan-builder/dist
 
 # --- Kai C# agent ---
 
@@ -265,6 +276,8 @@ clean:
 	rm -rf $(SIM)/observability
 	rm -rf $(SIM)/ui
 	rm -rf $(SIM)/ui-observability
+	rm -rf $(SIM)/ui-plan-builder
+	rm -rf $(SIM)/plan-builder
 	rm -rf $(SIM)/tmp
 	rm -f  $(SIM)/kaictl
 	@echo "Cleaned simulation/"

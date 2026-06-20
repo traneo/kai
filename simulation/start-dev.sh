@@ -8,6 +8,7 @@ ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-50051}"
 HTTP_PORT="${HTTP_PORT:-8080}"
 CONFIG_PORT="${CONFIG_PORT:-8081}"
 OBSERVABILITY_PORT="${OBSERVABILITY_PORT:-8082}"
+PLAN_BUILDER_PORT="${PLAN_BUILDER_PORT:-8083}"
 
 KAI_ENDPOINT="${KAI_ENDPOINT:-http://192.168.0.44:11434/v1/}"
 KAI_MODEL="${KAI_MODEL:-gemma4-12b-256k}"
@@ -37,7 +38,7 @@ echo "=== Build full project ==="
 make build
 
 echo "=== Creating tmp directories ==="
-mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai-code,agent-opencode,agent-claude,observability-logs}
+mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai-code,agent-opencode,agent-claude,observability-logs,plan-builder}
 
 # ---- Config service ----
 
@@ -111,6 +112,13 @@ echo "  Draft: $DRAFT_ID"
 CONFIG_JSON=$(cat <<ENDJSON
 {
   "config": {
+    "plan_builder": {
+      "llm": {
+        "endpoint": "${KAI_ENDPOINT}",
+        "model": "${KAI_MODEL}",
+        "api_key": ""
+      }
+    },
     "platform": {
       "auth": {"pre_shared_token": ""},
       "pool": {"heartbeat_timeout": "30s", "health_interval": "10s"},
@@ -187,6 +195,25 @@ curl -sf -X POST "http://localhost:${CONFIG_PORT}/api/v1/config/versions/${DRAFT
 ACTIVATE=$(curl -sf -X POST "http://localhost:${CONFIG_PORT}/api/v1/config/versions/${DRAFT_ID}/activate")
 echo "  Activated: $(echo "$ACTIVATE" | jq -c '.status, .hot_reloaded')"
 
+# ---- Plan Builder ----
+
+echo "=== Starting plan-builder ==="
+PORT="$PLAN_BUILDER_PORT" \
+CONFIG_SERVICE_URL="http://localhost:${CONFIG_PORT}" \
+OBSERVABILITY_URL="${OBSERVABILITY_URL}" \
+	"$ROOT/plan-builder/plan-builder" &
+PB_PID=$!
+PIDS+=($PB_PID)
+
+for i in $(seq 1 15); do
+	if curl -sf "http://localhost:${PLAN_BUILDER_PORT}/api/v1/plan-builder/health" >/dev/null 2>&1; then
+		echo "  Plan builder ready"
+		break
+	fi
+	if [ "$i" -eq 15 ]; then echo "Plan builder failed to start"; exit 1; fi
+	sleep 1
+done
+
 # ---- Agents ----
 
 echo "=== Starting agent-kai-code ==="
@@ -231,6 +258,11 @@ cd "$ROOT/../kai-observability-ui" && npx vite preview --port 5174 &
 OBS_UI_PID=$!
 PIDS+=($OBS_UI_PID)
 
+echo "=== Starting plan-builder UI ==="
+cd "$ROOT/../kai-plan-builder-ui" && npx vite preview --port 5175 &
+PB_UI_PID=$!
+PIDS+=($PB_UI_PID)
+
 # ---- Summary ----
 
 echo ""
@@ -242,12 +274,14 @@ echo "  local-coder-1  →  kai-code    (gRPC :50052)"
 echo "  local-coder-2  →  opencode    (gRPC :50053)"
 echo "  local-coder-3  →  claude-code (gRPC :50054)"
 echo ""
-echo "  Observability:   http://localhost:${OBSERVABILITY_PORT}"
-echo "  Config-service:  http://localhost:${CONFIG_PORT}"
-echo "  Orchestrator:    http://localhost:${HTTP_PORT}  |  gRPC :${ORCHESTRATOR_PORT}"
-echo "  UI:              http://localhost:5173"
+echo "  Observability:    http://localhost:${OBSERVABILITY_PORT}"
+echo "  Config-service:   http://localhost:${CONFIG_PORT}"
+echo "  Orchestrator:     http://localhost:${HTTP_PORT}  |  gRPC :${ORCHESTRATOR_PORT}"
+echo "  Plan Builder:     http://localhost:${PLAN_BUILDER_PORT}"
+echo "  UI:               http://localhost:5173"
 echo "  Observability UI: http://localhost:5174"
-echo "  kaictl:          $ROOT/kaictl"
+echo "  Plan Builder UI:  http://localhost:5175"
+echo "  kaictl:           $ROOT/kaictl"
 echo ""
 echo "  Submit a test:"
 echo "    curl -X POST http://localhost:${HTTP_PORT}/api/pipelines \\"

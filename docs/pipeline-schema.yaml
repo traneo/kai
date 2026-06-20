@@ -1,0 +1,163 @@
+# =============================================================================
+# Kai Pipeline YAML — Full Schema Reference
+# =============================================================================
+# This is the canonical reference for the pipeline.yaml format.
+# Sources:
+#   - kai-platform/orchestrator/internal/workflow/pipeline.go (Go structs)
+#   - kai-platform/orchestrator/internal/workflow/parser.go (yaml.v3 parser)
+#   - examples/*.yaml (6 real-world pipeline files)
+#   - kai-platform-ui/src/components/PipelineBuilder.tsx (serializeYaml / parseYaml)
+# =============================================================================
+
+version: 1
+# Required. Must be integer 1.
+
+# ── Project ────────────────────────────────────────────────────────────────
+project: <string>
+# Required. Name of the project. Used for display and run metadata.
+
+# ── Repository (optional) ──────────────────────────────────────────────────
+repo:
+  url: <string>
+  # Git remote URL. Optional — omit for no VCS integration.
+  # Example: https://github.com/org/repo.git
+  base_branch: main
+  # Base branch to open PRs against. Optional, default: main.
+  provider: <string>
+  # Git provider name. Optional. Known values: forgejo, github, gitlab, bitbucket.
+  token_ref: <string>
+  # Reference to a stored secret for authentication. Optional.
+  # Example: forgejo-token
+
+# ── Output (optional) ──────────────────────────────────────────────────────
+output:
+  type: pr
+  # Output type. Optional, default: pr.
+  # Allowed values: pr | branch | direct
+  #   pr      — push a branch and open a pull request
+  #   branch  — push a branch only
+  #   direct  — commit directly to the base branch
+  branch_prefix: feat/
+  # Prefix for generated branch names. Optional, default: feat/.
+  # Example: feat/kai-app-
+
+# ── Steps (required, at least 1) ───────────────────────────────────────────
+steps:
+  - id: <string>
+    # Required. Unique identifier for this step.
+    # Convention: kebab-case, e.g. "scaffold", "unit-tests", "implement-api"
+
+    prompt: |
+      <multiline text>
+    # Required. Instructions sent to the AI agent for this step.
+    # Can use YAML block scalars:
+    #   |  — literal block (preserves newlines)
+    #   >  — folded block (wraps lines)
+    #   "" — inline string for short prompts
+    # Best practice: use | for multi-step instructions with code snippets.
+
+    depends_on:
+      - <step-id>
+    # Optional. List of step IDs that must complete before this step runs.
+    # Creates the pipeline DAG. Omit for the first/root step(s).
+
+    validation:
+      - exit_zero     # Verify process exits with code 0
+      - lint          # Run linter (e.g. golangci-lint, eslint)
+      - typecheck     # Run type checker (e.g. go vet, tsc --noEmit)
+      - tests         # Run test suite
+      - diff_review   # Require human review of the generated diff
+    # Optional. List of validation gates to run after the step completes.
+    # Each gate is a separate verification step.
+    # Default: empty (no validation).
+
+    approval: optional
+    # Optional. Whether this step requires human approval.
+    # Allowed values: optional | required
+    #   optional — step runs automatically when dependencies are met
+    #   required — step waits for manual approval before executing
+    # Default: optional.
+
+    # ── Policy (optional) ────────────────────────────────────────────────
+    policy:
+      allowed_dirs:
+        - <path>
+      # Optional. Restrict file access to these directories.
+      # Globs not supported — must be exact directory paths.
+      # Example: [./src, ./internal]
+
+      allowed_tools:
+        - read_file
+        - write_file
+        - run
+        - glob
+        - search
+        - list_dir
+      # Optional. Restrict which tools the agent can use.
+      # If empty, all tools are allowed.
+
+      allowed_commands:
+        - <command-glob>
+      # Optional. Restrict shell commands the agent can run.
+      # Supports glob patterns: go *, npm test *, dotnet build *
+      # Example: [go *, mkdir *]
+
+      agent: <string>
+      # Optional. Pin this step to a specific agent by ID.
+      # Example: local-coder-1
+      # If empty, any available agent can pick up the step.
+
+      max_retries: 0
+      # Optional. Maximum number of retry attempts on failure.
+      # 0 means no retries. Default: 0.
+
+      timeout_seconds: 0
+      # Optional. Step timeout in seconds. 0 means no timeout.
+      # Default: 0 (no timeout).
+
+      retry_delay_seconds: 5
+      # Optional. Delay between retries in seconds.
+      # Default: 5.
+
+      retry_backoff: linear
+      # Optional. Backoff strategy between retries.
+      # Allowed values: linear | exponential
+      #   linear      — fixed delay of retry_delay_seconds
+      #   exponential — delay doubles each retry (capped at 5 minutes)
+      # Default: linear.
+
+      save_state: false
+      # Optional. Whether to save agent workspace state between retries.
+      # When true, the agent resumes with previous work on retry.
+      # When false, the step starts fresh on each retry.
+      # Default: false.
+
+# ── Full Example ────────────────────────────────────────────────────────────
+# version: 1
+# project: my-service
+# repo:
+#   url: https://github.com/org/my-service.git
+#   base_branch: main
+# output:
+#   type: pr
+#   branch_prefix: feat/kai-
+# steps:
+#   - id: scaffold
+#     prompt: |
+#       Initialize the project structure. Create a Go module and add
+#       a basic main.go with an HTTP server.
+#     validation:
+#       - exit_zero
+#     approval: optional
+#   - id: implement-api
+#     depends_on: [scaffold]
+#     prompt: |
+#       Implement the REST API endpoints.
+#     policy:
+#       allowed_dirs: [./internal]
+#       max_retries: 2
+#       timeout_seconds: 300
+#     validation:
+#       - exit_zero
+#       - lint
+#     approval: optional

@@ -154,7 +154,7 @@ export function PlatformConfigPage({ onNavigate }: Props) {
 
   const displayConfig = draftConfig || selectedVersion?.config || activeConfig
   const isDraft = editing && draftConfig
-  const statusColors: Record<string, string> = { active: 'var(--accent-green)', published: 'var(--accent-blue)', draft: 'var(--accent-amber)' }
+  const statusColors: Record<string, string> = { active: 'var(--accent-green)', published: 'var(--accent-primary)', draft: 'var(--accent-amber)' }
 
   return (
     <div className="app">

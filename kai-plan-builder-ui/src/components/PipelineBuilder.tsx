@@ -1,5 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
-import { createPipeline } from '../api'
+import { useState, useMemo, useEffect } from 'react'
 
 interface StepPolicy {
   allowedDirs: string[]
@@ -26,6 +25,8 @@ interface PipelineConfig {
   project: string
   repoURL: string
   repoBaseBranch: string
+  repoProvider: string
+  repoTokenRef: string
   outputType: string
   branchPrefix: string
   steps: BuilderStep[]
@@ -64,6 +65,8 @@ function parseYaml(yaml: string): PipelineConfig {
     project: '',
     repoURL: '',
     repoBaseBranch: 'main',
+    repoProvider: '',
+    repoTokenRef: '',
     outputType: 'pr',
     branchPrefix: 'feat/',
     steps: [],
@@ -159,7 +162,9 @@ function parseYaml(yaml: string): PipelineConfig {
     } else if (key === 'base_branch' && indent === 2) {
       config.repoBaseBranch = val
     } else if (key === 'provider' && indent === 2) {
+      config.repoProvider = val
     } else if (key === 'token_ref' && indent === 2) {
+      config.repoTokenRef = val
     } else if (key === 'type' && indent === 2) {
       config.outputType = val
     } else if (key === 'branch_prefix' && indent === 2) {
@@ -305,7 +310,8 @@ function parseYaml(yaml: string): PipelineConfig {
 }
 
 interface Props {
-  onCreated: (runId: string) => void
+  initialYaml?: string
+  onYamlChange?: (yaml: string) => void
 }
 
 function serializeYaml(config: PipelineConfig): string {
@@ -319,6 +325,12 @@ function serializeYaml(config: PipelineConfig): string {
     yaml += `${indent(1)}url: ${config.repoURL}\n`
     if (config.repoBaseBranch) {
       yaml += `${indent(1)}base_branch: ${config.repoBaseBranch}\n`
+    }
+    if (config.repoProvider) {
+      yaml += `${indent(1)}provider: ${config.repoProvider}\n`
+    }
+    if (config.repoTokenRef) {
+      yaml += `${indent(1)}token_ref: ${config.repoTokenRef}\n`
     }
   }
 
@@ -400,24 +412,53 @@ function layoutDAG(steps: BuilderStep[]): BuilderStep[][] {
   return levels
 }
 
-export function PipelineBuilder({ onCreated }: Props) {
+export function PipelineBuilder({ initialYaml, onYamlChange }: Props) {
   const [config, setConfig] = useState<PipelineConfig>({
     project: '',
     repoURL: '',
     repoBaseBranch: 'main',
+    repoProvider: '',
+    repoTokenRef: '',
     outputType: 'pr',
     branchPrefix: 'feat/',
     steps: [],
   })
-  const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showYaml, setShowYaml] = useState(false)
+  const yaml = useMemo(() => serializeYaml(config), [config])
+
+  useEffect(() => {
+    if (onYamlChange) {
+      onYamlChange(yaml)
+    }
+  }, [yaml, onYamlChange])
   const [nextStepNum, setNextStepNum] = useState(1)
   const [modalStep, setModalStep] = useState<BuilderStep | null>(null)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [showImport, setShowImport] = useState(false)
   const [importYaml, setImportYaml] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
+
+  useEffect(() => {
+    if (initialYaml && !initialized) {
+      try {
+        const parsed = parseYaml(initialYaml)
+        if (parsed.project.trim()) {
+          setConfig(parsed)
+          const maxNum = parsed.steps.reduce((max, s) => {
+            const match = s.id.match(/step-(\d+)/)
+            return match ? Math.max(max, parseInt(match[1]) + 1) : max
+          }, 1)
+          setNextStepNum(maxNum)
+        } else {
+          setError('Generated YAML is missing project name. Check the Raw YAML tab to review and fix.')
+        }
+      } catch {
+        setError('Could not load generated YAML into visual editor. The format may not match expectations. Switch to the Raw YAML tab to review and edit manually, or use Import YAML.')
+      }
+      setInitialized(true)
+    }
+  }, [initialYaml, initialized])
 
   function updateConfig(updates: Partial<PipelineConfig>) {
     setConfig(prev => ({ ...prev, ...updates }))
@@ -498,46 +539,7 @@ export function PipelineBuilder({ onCreated }: Props) {
     setImportError(null)
   }
 
-  const yaml = useMemo(() => serializeYaml(config), [config])
   const dagLevels = useMemo(() => layoutDAG(config.steps), [config.steps])
-  const yamlLines = useMemo(() => yaml.split('\n'), [yaml])
-
-  const handleSubmit = useCallback(async () => {
-    if (!config.project.trim()) {
-      setError('Project name is required')
-      return
-    }
-    if (config.steps.length === 0) {
-      setError('Add at least one step')
-      return
-    }
-    for (const s of config.steps) {
-      if (!s.prompt.trim()) {
-        setError(`Step "${s.id}" has no prompt`)
-        return
-      }
-    }
-
-    setCreating(true)
-    setError(null)
-    try {
-      const result = await createPipeline(yaml)
-      setConfig({
-        project: '',
-        repoURL: '',
-        repoBaseBranch: 'main',
-        outputType: 'pr',
-        branchPrefix: 'feat/',
-        steps: [],
-      })
-      setNextStepNum(1)
-      onCreated(result.id)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setCreating(false)
-    }
-  }, [config, yaml, onCreated])
 
   return (
     <div className="pipeline-builder">
@@ -552,29 +554,6 @@ export function PipelineBuilder({ onCreated }: Props) {
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             Import YAML
-          </button>
-          <button
-            className={`builder-yaml-btn${showYaml ? ' active' : ''}`}
-            onClick={() => setShowYaml(!showYaml)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-            </svg>
-            YAML Preview
-            {!showYaml && <span className="section-count">{yamlLines.length - 1} lines</span>}
-          </button>
-          {error && <p className="error" style={{ margin: 0, fontSize: 11 }}>{error}</p>}
-          <button className="btn" onClick={handleSubmit} disabled={creating} style={{ whiteSpace: 'nowrap' }}>
-            {creating ? (
-              <><span className="spinner" style={{ verticalAlign: 'middle', marginRight: 6 }} />Creating...</>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 6 }}>
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                Run Pipeline
-              </>
-            )}
           </button>
         </div>
       </div>
@@ -635,6 +614,26 @@ export function PipelineBuilder({ onCreated }: Props) {
                 placeholder="main"
                 value={config.repoBaseBranch}
                 onChange={e => updateConfig({ repoBaseBranch: e.target.value })}
+              />
+            </div>
+            <div className="builder-field">
+              <label className="builder-label">Repo Provider</label>
+              <input
+                className="builder-input"
+                type="text"
+                placeholder="forgejo, github, gitlab..."
+                value={config.repoProvider}
+                onChange={e => updateConfig({ repoProvider: e.target.value })}
+              />
+            </div>
+            <div className="builder-field">
+              <label className="builder-label">Token Ref</label>
+              <input
+                className="builder-input"
+                type="text"
+                placeholder="forgejo-token"
+                value={config.repoTokenRef}
+                onChange={e => updateConfig({ repoTokenRef: e.target.value })}
               />
             </div>
           </div>
@@ -699,12 +698,8 @@ export function PipelineBuilder({ onCreated }: Props) {
           )}
         </div>
 
-        {/* YAML Preview (secondary) */}
-        {showYaml && (
-          <div className="builder-card">
-            <div className="builder-card-title">YAML Preview</div>
-            <pre className="builder-yaml-output">{yaml}</pre>
-          </div>
+        {error && (
+          <p className="error" style={{ marginTop: 8 }}>{error}</p>
         )}
       </div>
 

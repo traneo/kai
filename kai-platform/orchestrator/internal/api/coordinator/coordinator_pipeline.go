@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kaipb "kaiplatform.com/gen/kaiplatform/v1"
+	sdkgokit "kaiplatform.com/observability-sdk"
 	"kaiplatform.com/orchestrator/internal/agentpool"
 	"kaiplatform.com/orchestrator/internal/audit"
 	"kaiplatform.com/orchestrator/internal/gitops"
@@ -39,6 +40,13 @@ func (c *Coordinator) resolveGitToken(ctx context.Context, tokenRef string) stri
 func (c *Coordinator) SetupWorkspace(runID string, run *workflow.Run, p *workflow.Pipeline) {
 	ctx := context.Background()
 
+	if c.obsLogger != nil {
+		c.obsLogger.WithRunID(runID).Info("setup workspace started",
+			sdkgokit.F("repo", p.Repo.URL),
+			sdkgokit.F("branch", p.Repo.BaseBranch),
+		)
+	}
+
 	token := c.resolveGitToken(ctx, p.Repo.TokenRef)
 
 	providerName := p.Repo.Provider
@@ -66,22 +74,47 @@ func (c *Coordinator) SetupWorkspace(runID string, run *workflow.Run, p *workflo
 
 	if err := gc.Clone(ctx, p.Repo.BaseBranch); err != nil {
 		c.printf("clone repo for run %s: %v", runID, err)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(runID).Error("workspace setup failed",
+				sdkgokit.F("phase", "clone"),
+				sdkgokit.F("error", err.Error()),
+			)
+		}
 		return
 	}
 
 	if err := gc.SetupGitConfig(ctx); err != nil {
 		c.printf("git config for run %s: %v", runID, err)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(runID).Error("workspace setup failed",
+				sdkgokit.F("phase", "git_config"),
+				sdkgokit.F("error", err.Error()),
+			)
+		}
 		return
 	}
 
 	if err := gc.PushInitialBranch(ctx); err != nil {
 		c.printf("push initial branch for run %s: %v", runID, err)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(runID).Error("workspace setup failed",
+				sdkgokit.F("phase", "push_branch"),
+				sdkgokit.F("error", err.Error()),
+			)
+		}
 		return
 	}
 
 	c.mu.Lock()
 	c.gitClients[runID] = gc
 	c.mu.Unlock()
+
+	if c.obsLogger != nil {
+		c.obsLogger.WithRunID(runID).Info("workspace setup complete",
+			sdkgokit.F("repo_dir", gc.RepoDir()),
+			sdkgokit.F("branch", gc.BranchName()),
+		)
+	}
 
 	c.printf("workspace ready for run %s: repo=%s branch=%s", runID, gc.RepoDir(), gc.BranchName())
 
@@ -151,17 +184,32 @@ func (c *Coordinator) tryDispatchSteps(run *workflow.Run) {
 
 	if snap.Status == workflow.PipelineCompleted {
 		c.printf("pipeline run %s completed successfully!", run.ID)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(run.ID).Info("pipeline completed")
+		}
 		c.finishRun(run)
 		return
 	}
 
 	if snap.Status != workflow.PipelineRunning {
 		c.logf("RUN %s: tryDispatchSteps skipped (status=%v)", run.ID, snap.Status)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(run.ID).Warn("tryDispatchSteps skipped",
+				sdkgokit.F("status", string(snap.Status)),
+			)
+		}
 		return
 	}
 
 	ready := run.NextReadySteps()
 	c.logf("RUN %s: tryDispatchSteps ready=%v", run.ID, ready)
+
+	if c.obsLogger != nil {
+		c.obsLogger.WithRunID(run.ID).Info("dispatching steps",
+			sdkgokit.F("ready_steps", ready),
+		)
+	}
+
 	for _, id := range ready {
 		if id != "" {
 			c.printf("step %s is ready, looking for idle agent", id)
@@ -172,6 +220,9 @@ func (c *Coordinator) tryDispatchSteps(run *workflow.Run) {
 	snap2 := run.Snapshot()
 	if snap2.Status == workflow.PipelineCompleted {
 		c.printf("pipeline run %s completed successfully!", run.ID)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(run.ID).Info("pipeline completed")
+		}
 		c.finishRun(run)
 	}
 }

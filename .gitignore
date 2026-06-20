@@ -19,6 +19,7 @@ kai-plugins/gate/conventional-commits-gate/plugin
 kai-plugins/gitprovider/forgejo-provider/forgejo-provider
 kai-plugins/runner/claude-plugin/claude-plugin
 kai-plugins/runner/kai-plugin/kai-plugin
+kai-plugins/runner/kai-code-plugin/kai-code-plugin
 kai-plugins/runner/opencode-plugin/opencode-plugin
 kai-plugins/secrets/env-plugin/env-plugin
 

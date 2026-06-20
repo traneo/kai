@@ -10,7 +10,7 @@ const tabs: { page: Page; label: string }[] = [
   { page: 'secrets', label: 'Secrets' },
   { page: 'platform-config', label: 'Config' },
   { page: 'audit', label: 'Audit Log' },
-  { page: 'new', label: 'New Pipeline' },
+
 ]
 
 export function NavBar({ current, onNavigate }: Props) {

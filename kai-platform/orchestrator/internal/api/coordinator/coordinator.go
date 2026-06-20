@@ -261,6 +261,14 @@ func (c *Coordinator) CreateRun(id string, p *workflow.Pipeline, rawYAML string)
 		c.logf("RUN %s:   step %q: validation=%v approval=%q deps=%v", id, s.ID, s.Validation, s.Approval, s.DependsOn)
 	}
 
+	if c.obsLogger != nil {
+		c.obsLogger.WithRunID(id).Info("pipeline created",
+			sdkgokit.F("project", p.Project),
+			sdkgokit.F("steps", len(p.Steps)),
+			sdkgokit.F("has_repo", p.Repo.URL != ""),
+		)
+	}
+
 	go c.SetupWorkspace(id, run, p)
 
 	return run, nil
