@@ -55,6 +55,10 @@ func (s *FileDumpStore) GetByID(ctx context.Context, id string) (*models.LogEntr
 	return s.inner.GetByID(ctx, id)
 }
 
+func (s *FileDumpStore) RunSummaries(ctx context.Context) ([]models.RunSummary, error) {
+	return s.inner.RunSummaries(ctx)
+}
+
 func (s *FileDumpStore) Close() error {
 	close(s.done)
 	s.wg.Wait()

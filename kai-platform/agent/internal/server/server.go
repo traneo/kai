@@ -91,6 +91,7 @@ func (s *AgentServer) AssignMission(mission *kaipb.Mission, stream grpc.ServerSt
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   fmt.Sprintf("mission completed: success=%v exit_code=%d", res.Success, res.ExitCode),
 		})
 

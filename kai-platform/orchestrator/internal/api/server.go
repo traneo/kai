@@ -126,16 +126,16 @@ func (s *Server) ReportLog(stream grpc.ClientStreamingServer[kaipb.LogEntry, kai
 		}
 		log.Printf("[log] %s | %s", entry.Source, entry.Message)
 		if s.obsLogger != nil {
-			level := string(sdkgokit.LevelInfo)
 			switch entry.Level {
 			case kaipb.LogLevel_LOG_LEVEL_WARN:
-				level = string(sdkgokit.LevelWarn)
+				s.obsLogger.Warn(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
 			case kaipb.LogLevel_LOG_LEVEL_ERROR:
-				level = string(sdkgokit.LevelError)
+				s.obsLogger.Error(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
 			case kaipb.LogLevel_LOG_LEVEL_DEBUG:
-				level = string(sdkgokit.LevelDebug)
+				s.obsLogger.Debug(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
+			default:
+				s.obsLogger.Info(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
 			}
-			s.obsLogger.Info(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("level", level), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
 		}
 	}
 }

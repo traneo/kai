@@ -8,7 +8,7 @@ SIM  := $(ROOT)/simulation
         dist-agent-kai-code dist-agent-opencode dist-agent-claude dist-orchestrator \
         check-prereqs proto npm-install
 
-build: build-observability build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
+build: build-observability build-agent build-orchestrator build-config-service build-kaictl build-ui build-observability-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
 
 start-dev: build
 	./start-dev.sh
@@ -160,6 +160,7 @@ proto:
 npm-install:
 	@echo "=== Installing UI dependencies ==="
 	cd $(ROOT)/kai-platform-ui && npm install
+	cd $(ROOT)/kai-observability-ui && npm install
 
 # --- Observability ---
 
@@ -194,9 +195,14 @@ build-kaictl: check-prereqs
 # --- UI ---
 
 build-ui: npm-install check-prereqs
-	@echo "=== Building UI ==="
+	@echo "=== Building platform UI ==="
 	mkdir -p $(SIM)/ui
 	cd $(ROOT)/kai-platform-ui && npm run build && rm -rf $(SIM)/ui/dist && cp -r dist $(SIM)/ui/dist
+
+build-observability-ui: npm-install check-prereqs
+	@echo "=== Building observability UI ==="
+	mkdir -p $(SIM)/ui-observability
+	cd $(ROOT)/kai-observability-ui && npm run build && rm -rf $(SIM)/ui-observability/dist && cp -r dist $(SIM)/ui-observability/dist
 
 # --- Kai C# agent ---
 
@@ -258,6 +264,7 @@ clean:
 	rm -rf $(SIM)/config-service
 	rm -rf $(SIM)/observability
 	rm -rf $(SIM)/ui
+	rm -rf $(SIM)/ui-observability
 	rm -rf $(SIM)/tmp
 	rm -f  $(SIM)/kaictl
 	@echo "Cleaned simulation/"

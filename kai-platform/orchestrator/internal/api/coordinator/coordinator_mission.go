@@ -324,17 +324,20 @@ func (c *Coordinator) StoreMissionEvent(missionID string, evt *kaipb.MissionEven
 	case *kaipb.MissionEvent_Log:
 		entry = entryFromLog(runID, stepID, missionID, e.Log)
 		if c.obsLogger != nil {
-			level := string(sdkgokit.LevelInfo)
 			switch e.Log.Level {
 			case kaipb.LogLevel_LOG_LEVEL_WARN:
-				level = string(sdkgokit.LevelWarn)
+				c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Warn(e.Log.Message,
+					sdkgokit.F("source", e.Log.Source), sdkgokit.F("sequence", e.Log.Sequence))
 			case kaipb.LogLevel_LOG_LEVEL_ERROR:
-				level = string(sdkgokit.LevelError)
+				c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Error(e.Log.Message,
+					sdkgokit.F("source", e.Log.Source), sdkgokit.F("sequence", e.Log.Sequence))
 			case kaipb.LogLevel_LOG_LEVEL_DEBUG:
-				level = string(sdkgokit.LevelDebug)
+				c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Debug(e.Log.Message,
+					sdkgokit.F("source", e.Log.Source), sdkgokit.F("sequence", e.Log.Sequence))
+			default:
+				c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Info(e.Log.Message,
+					sdkgokit.F("source", e.Log.Source), sdkgokit.F("sequence", e.Log.Sequence))
 			}
-			c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Info(e.Log.Message,
-				sdkgokit.F("source", e.Log.Source), sdkgokit.F("level", level), sdkgokit.F("sequence", e.Log.Sequence))
 		}
 	case *kaipb.MissionEvent_FileChange:
 		entry = entryFromFileChange(runID, stepID, missionID, e.FileChange)

@@ -133,6 +133,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   fmt.Sprintf("cloning repo %s (branch: %s)", mission.Workspace.RepoUrl, mission.Workspace.Branch),
 		})
 	} else {
@@ -155,6 +156,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 	report(&kaipb.LogEntry{
 		MissionId: mission.Id,
 		Source:    "system",
+		Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 		Message:   fmt.Sprintf("workspace ready at %s", sb.RepoDir),
 	})
 
@@ -176,6 +178,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   fmt.Sprintf("git %s: %s", strings.Join(args, " "), out),
 		})
 		if err != nil {
@@ -192,6 +195,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   fmt.Sprintf("git config user = %s <%s>", gitUser, gitEmail),
 		})
 	}
@@ -208,6 +212,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_ERROR,
 			Message:   fmt.Sprintf("unknown runner %q: %v", runnerType, err),
 		})
 		log.Printf("unknown runner %q: %v", runnerType, err)
@@ -238,6 +243,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_ERROR,
 			Message:   fmt.Sprintf("write config failed: %v", err),
 		})
 		log.Printf("write config failed: %v", err)
@@ -255,12 +261,14 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 	report(&kaipb.LogEntry{
 		MissionId: mission.Id,
 		Source:    "system",
+		Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 		Message:   fmt.Sprintf("runner = %q | config_blob = %s", runnerType, mission.ConfigBlob),
 	})
 
 	report(&kaipb.LogEntry{
 		MissionId: mission.Id,
 		Source:    "system",
+		Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 		Message:   fmt.Sprintf("starting %s run with prompt: %s", runnerType, mission.Prompt),
 	})
 
@@ -268,6 +276,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    source,
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   line,
 		})
 	}
@@ -299,6 +308,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   "remote origin removed — subprocess sandboxed from git push",
 		})
 
@@ -310,33 +320,37 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   "remote origin restored — push access granted",
 		})
 
 		// Push with pull --rebase fallback for concurrent agents
 		pushOut, pushErr := gitOut("push", "origin", branch)
 		if pushErr != nil && strings.Contains(pushOut, "rejected") {
-			report(&kaipb.LogEntry{
-				MissionId: mission.Id,
-				Source:    "system",
-				Message:   "push rejected, pulling remote changes...",
-			})
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_WARN,
+			Message:   "push rejected, pulling remote changes...",
+		})
 			gitOut("fetch", "origin")
 			rebaseOut, rebaseErr := gitOut("pull", "--rebase", "origin", branch)
 			if rebaseErr != nil {
 				gitOut("rebase", "--abort")
-				report(&kaipb.LogEntry{
-					MissionId: mission.Id,
-					Source:    "system",
-					Message:   fmt.Sprintf("rebase failed, aborting. push skipped: %s", rebaseOut),
-				})
+			report(&kaipb.LogEntry{
+				MissionId: mission.Id,
+				Source:    "system",
+				Level:     kaipb.LogLevel_LOG_LEVEL_ERROR,
+				Message:   fmt.Sprintf("rebase failed, aborting. push skipped: %s", rebaseOut),
+			})
 			} else {
 				pushOut, pushErr = gitOut("push", "origin", branch)
-				report(&kaipb.LogEntry{
-					MissionId: mission.Id,
-					Source:    "system",
-					Message:   fmt.Sprintf("git push after rebase: %s", pushOut),
-				})
+			report(&kaipb.LogEntry{
+				MissionId: mission.Id,
+				Source:    "system",
+				Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
+				Message:   fmt.Sprintf("git push after rebase: %s", pushOut),
+			})
 				if pushErr != nil {
 					log.Printf("git push after rebase: %v", pushErr)
 				}
@@ -347,6 +361,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 			report(&kaipb.LogEntry{
 				MissionId: mission.Id,
 				Source:    "system",
+				Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 				Message:   fmt.Sprintf("git push: %s", pushOut),
 			})
 		}
@@ -356,6 +371,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   "remote origin removed — push access revoked",
 		})
 	}
@@ -364,6 +380,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
+			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 			Message:   "saving workspace state as archive...",
 		})
 		archive, zipErr := sandbox.ZipDir(sb.RepoDir)
@@ -374,6 +391,7 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 			report(&kaipb.LogEntry{
 				MissionId: mission.Id,
 				Source:    "system",
+				Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
 				Message:   fmt.Sprintf("workspace state archive created (%d bytes)", len(archive)),
 			})
 		}

@@ -65,6 +65,18 @@ func (s *MemoryStore) Query(_ context.Context, filter models.QueryFilter) ([]mod
 		if filter.Search != "" && !strings.Contains(strings.ToLower(e.Message), strings.ToLower(filter.Search)) {
 			continue
 		}
+		if filter.RunID != "" && e.RunID != filter.RunID {
+			continue
+		}
+		if filter.StepID != "" && e.StepID != filter.StepID {
+			continue
+		}
+		if filter.MissionID != "" && e.MissionID != filter.MissionID {
+			continue
+		}
+		if filter.AgentID != "" && e.AgentID != filter.AgentID {
+			continue
+		}
 		result = append(result, e)
 	}
 
@@ -74,6 +86,65 @@ func (s *MemoryStore) Query(_ context.Context, filter models.QueryFilter) ([]mod
 	result = result[offset:]
 	if len(result) > limit {
 		result = result[:limit]
+	}
+	return result, nil
+}
+
+func (s *MemoryStore) RunSummaries(_ context.Context) ([]models.RunSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	summaryMap := make(map[string]*models.RunSummary)
+	var runOrder []string
+
+	for _, e := range s.entries {
+		if e.RunID == "" {
+			continue
+		}
+		rs, ok := summaryMap[e.RunID]
+		if !ok {
+			rs = &models.RunSummary{
+				RunID: e.RunID,
+			}
+			summaryMap[e.RunID] = rs
+			runOrder = append(runOrder, e.RunID)
+		}
+		rs.EntryCount++
+		if e.Timestamp < rs.StartTime || rs.StartTime == 0 {
+			rs.StartTime = e.Timestamp
+		}
+		if e.Timestamp > rs.EndTime {
+			rs.EndTime = e.Timestamp
+		}
+		if e.Service != "" {
+			found := false
+			for _, s := range rs.Services {
+				if s == e.Service {
+					found = true
+					break
+				}
+			}
+			if !found {
+				rs.Services = append(rs.Services, e.Service)
+			}
+		}
+		if e.StepID != "" {
+			found := false
+			for _, s := range rs.Steps {
+				if s == e.StepID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				rs.Steps = append(rs.Steps, e.StepID)
+			}
+		}
+	}
+
+	result := make([]models.RunSummary, 0, len(runOrder))
+	for i := len(runOrder) - 1; i >= 0; i-- {
+		result = append(result, *summaryMap[runOrder[i]])
 	}
 	return result, nil
 }

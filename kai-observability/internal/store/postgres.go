@@ -125,6 +125,26 @@ func (s *PostgresStore) Query(_ context.Context, filter models.QueryFilter) ([]m
 		args = append(args, "%"+strings.ToLower(filter.Search)+"%")
 		n++
 	}
+	if filter.RunID != "" {
+		where = append(where, fmt.Sprintf("run_id = $%d", n))
+		args = append(args, filter.RunID)
+		n++
+	}
+	if filter.StepID != "" {
+		where = append(where, fmt.Sprintf("step_id = $%d", n))
+		args = append(args, filter.StepID)
+		n++
+	}
+	if filter.MissionID != "" {
+		where = append(where, fmt.Sprintf("mission_id = $%d", n))
+		args = append(args, filter.MissionID)
+		n++
+	}
+	if filter.AgentID != "" {
+		where = append(where, fmt.Sprintf("agent_id = $%d", n))
+		args = append(args, filter.AgentID)
+		n++
+	}
 
 	query := "SELECT id, service, level, message, ts, COALESCE(run_id,''), COALESCE(step_id,''), COALESCE(mission_id,''), COALESCE(agent_id,''), metadata, received_at FROM log_entries"
 	if len(where) > 0 {
@@ -173,6 +193,91 @@ func (s *PostgresStore) GetByID(_ context.Context, id string) (*models.LogEntry,
 	return &e, nil
 }
 
+func (s *PostgresStore) RunSummaries(_ context.Context) ([]models.RunSummary, error) {
+	rows, err := s.db.Query(`
+		SELECT run_id, COUNT(*) as entry_count, MIN(ts) as start_time, MAX(ts) as end_time,
+			array_agg(DISTINCT service) as services,
+			array_agg(DISTINCT step_id) FILTER (WHERE step_id != '') as steps
+		FROM log_entries
+		WHERE run_id != ''
+		GROUP BY run_id
+		ORDER BY MAX(ts) DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("run summaries: %w", err)
+	}
+	defer rows.Close()
+
+	var summaries []models.RunSummary
+	for rows.Next() {
+		var rs models.RunSummary
+		var services, steps []string
+		if err := rows.Scan(&rs.RunID, &rs.EntryCount, &rs.StartTime, &rs.EndTime, pqArray(&services), pqArray(&steps)); err != nil {
+			return nil, fmt.Errorf("scan summary: %w", err)
+		}
+		if services == nil {
+			services = []string{}
+		}
+		if steps == nil {
+			steps = []string{}
+		}
+		rs.Services = services
+		rs.Steps = steps
+		summaries = append(summaries, rs)
+	}
+	if summaries == nil {
+		summaries = []models.RunSummary{}
+	}
+	return summaries, rows.Err()
+}
+
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
+}
+
+// pqArray scans a PostgreSQL array into a Go string slice.
+func pqArray(dst *[]string) interface{} {
+	return &pgArrayScanner{dst: dst}
+}
+
+type pgArrayScanner struct {
+	dst *[]string
+}
+
+func (s *pgArrayScanner) Scan(src interface{}) error {
+	if src == nil {
+		*s.dst = []string{}
+		return nil
+	}
+	switch v := src.(type) {
+	case []byte:
+		return s.scanString(string(v))
+	case string:
+		return s.scanString(v)
+	default:
+		*s.dst = []string{}
+		return nil
+	}
+}
+
+func (s *pgArrayScanner) scanString(raw string) error {
+	if len(raw) < 2 || raw[0] != '{' || raw[len(raw)-1] != '}' {
+		*s.dst = []string{}
+		return nil
+	}
+	inner := raw[1 : len(raw)-1]
+	if inner == "" {
+		*s.dst = []string{}
+		return nil
+	}
+	var result []string
+	for _, part := range strings.Split(inner, ",") {
+		part = strings.TrimSpace(part)
+		part = strings.Trim(part, "\"")
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	*s.dst = result
+	return nil
 }

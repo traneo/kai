@@ -102,6 +102,10 @@ func (h *Handlers) HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	filter := models.QueryFilter{
 		Service: q.Get("service"),
 		Search:  q.Get("search"),
+		RunID:   q.Get("run_id"),
+		StepID:  q.Get("step_id"),
+		MissionID: q.Get("mission_id"),
+		AgentID: q.Get("agent_id"),
 		Limit:   100,
 		Offset:  0,
 	}
@@ -134,6 +138,20 @@ func (h *Handlers) HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entries)
+}
+
+func (h *Handlers) HandleGetSummaries(w http.ResponseWriter, r *http.Request) {
+	summaries, err := h.store.RunSummaries(r.Context())
+	if err != nil {
+		log.Printf("store run summaries: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if summaries == nil {
+		summaries = []models.RunSummary{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(summaries)
 }
 
 func (h *Handlers) HandleGetLogByID(w http.ResponseWriter, r *http.Request, id string) {

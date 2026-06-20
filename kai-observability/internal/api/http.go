@@ -48,6 +48,13 @@ func NewServer(port string, s store.Store, hub *SSEHub) *Server {
 		h.HandlePostBatch(w, r)
 	})
 	mux.HandleFunc("/api/v1/logs/stream", h.HandleStream)
+	mux.HandleFunc("/api/v1/logs/summaries", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.HandleGetSummaries(w, r)
+	})
 
 	return &Server{
 		httpServer: &http.Server{

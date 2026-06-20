@@ -221,10 +221,15 @@ PIDS+=($!)
 
 # ---- UI ----
 
-echo "=== Starting UI ==="
+echo "=== Starting platform UI ==="
 cd "$ROOT/../kai-platform-ui" && npx vite preview --port 5173 &
 UI_PID=$!
 PIDS+=($UI_PID)
+
+echo "=== Starting observability UI ==="
+cd "$ROOT/../kai-observability-ui" && npx vite preview --port 5174 &
+OBS_UI_PID=$!
+PIDS+=($OBS_UI_PID)
 
 # ---- Summary ----
 
@@ -241,6 +246,7 @@ echo "  Observability:   http://localhost:${OBSERVABILITY_PORT}"
 echo "  Config-service:  http://localhost:${CONFIG_PORT}"
 echo "  Orchestrator:    http://localhost:${HTTP_PORT}  |  gRPC :${ORCHESTRATOR_PORT}"
 echo "  UI:              http://localhost:5173"
+echo "  Observability UI: http://localhost:5174"
 echo "  kaictl:          $ROOT/kaictl"
 echo ""
 echo "  Submit a test:"
