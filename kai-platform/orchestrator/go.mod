@@ -4,12 +4,15 @@ go 1.25.0
 
 replace kaiplatform.com/gen => ../gen
 
+replace kaiplatform.com/observability-sdk => ../../kai-observability-sdk/go
+
 require (
 	github.com/lib/pq v1.12.3
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	kaiplatform.com/gen v0.0.0-00010101000000-000000000000
+	kaiplatform.com/observability-sdk v0.0.0-00010101000000-000000000000
 )
 
 require (

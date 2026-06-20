@@ -10,8 +10,10 @@ obj/
 *.test
 *.out
 kai-platform/server
+kai-platform/orchestrator/server
 kai-platform/agent/agent
 kai-cli-control/kaictl
+kai-observability/server
 kai-plugins/archive/local-fs-plugin/local-fs-plugin
 kai-plugins/gate/conventional-commits-gate/plugin
 kai-plugins/gitprovider/forgejo-provider/forgejo-provider

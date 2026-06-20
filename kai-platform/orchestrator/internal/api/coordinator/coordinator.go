@@ -17,6 +17,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/secrets"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/workflow"
+	sdkgokit "kaiplatform.com/observability-sdk"
 )
 
 type EventPublisher func(any)
@@ -100,7 +101,12 @@ type Coordinator struct {
 	configLoaded   bool
 	configLoadedMu sync.RWMutex
 
-	log Logger
+	log       Logger
+	obsLogger *sdkgokit.Logger
+}
+
+func (c *Coordinator) SetObsLogger(l *sdkgokit.Logger) {
+	c.obsLogger = l
 }
 
 func (c *Coordinator) SetConfigLoaded() {

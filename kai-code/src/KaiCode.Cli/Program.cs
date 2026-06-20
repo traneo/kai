@@ -1,6 +1,9 @@
 ﻿using System.CommandLine;
 using System.CommandLine.Parsing;
+using kai.Cli;
 using kai.Cli.Commands;
+
+Logo.Print();
 
 var root = new RootCommand("kai-code - AI Development Lifecycle Companion");
 

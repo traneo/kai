@@ -29,6 +29,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/secrets"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/validation/gates"
+	sdkgokit "kaiplatform.com/observability-sdk"
 )
 
 func startServer(httpPort, configServiceURL string) {
@@ -83,7 +84,15 @@ func startServer(httpPort, configServiceURL string) {
 
 	secretStore := api.NewMemorySecretStore()
 
+	obsEndpoint := os.Getenv("OBSERVABILITY_URL")
+	var obsLogger *sdkgokit.Logger
+	if obsEndpoint != "" {
+		obsLogger = sdkgokit.New(obsEndpoint, "orchestrator")
+		log.Printf("observability forwarding to %s", obsEndpoint)
+	}
+
 	srv := api.NewServer(valRunner)
+	srv.SetObsLogger(obsLogger)
 	srv.GetCoordinator().SetServer(srv)
 	srv.GetCoordinator().SetAuditStore(auditStore)
 	srv.GetCoordinator().SetArchiveStore(archiveStore)
@@ -227,6 +236,9 @@ func startServer(httpPort, configServiceURL string) {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
 	log.Println("shutting down")
+	if obsLogger != nil {
+		obsLogger.Close()
+	}
 	grpcServer.GracefulStop()
 	httpServer.Close()
 }

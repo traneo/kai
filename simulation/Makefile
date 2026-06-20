@@ -3,11 +3,12 @@ SIM  := $(ROOT)/simulation
 
 .PHONY: build clean start-dev docker-build env-files \
         env-orchestrator env-config-service env-agent-kai-code env-agent-opencode env-agent-claude \
-        build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli \
+        build-agent build-orchestrator build-config-service build-observability build-kaictl build-ui build-kai-code-cli \
         build-plugins \
-        dist-agent-kai-code dist-agent-opencode dist-agent-claude dist-orchestrator
+        dist-agent-kai-code dist-agent-opencode dist-agent-claude dist-orchestrator \
+        check-prereqs proto npm-install
 
-build: build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
+build: build-observability build-agent build-orchestrator build-config-service build-kaictl build-ui build-kai-code-cli build-plugins dist-orchestrator dist-agent-kai-code dist-agent-opencode dist-agent-claude
 
 start-dev: build
 	./start-dev.sh
@@ -127,39 +128,79 @@ env-agent-claude:
 	@sed -n '/^[A-Z_]/ { s/ *  *#.*//; p; }' $(SIM)/agent-claude/.env.docs > $(SIM)/agent-claude/.env
 	@echo "Generated .env and .env.docs for agent-claude"
 
+# --- Prerequisites ---
+
+check-prereqs:
+	@echo "=== Checking prerequisites ==="
+	$(call _require,go)
+	$(call _require,node)
+	$(call _require,npm)
+	$(call _require,dotnet)
+	$(call _require,protoc)
+	$(call _require,protoc-gen-go,$$HOME/go/bin)
+	$(call _require,protoc-gen-go-grpc,$$HOME/go/bin)
+	$(call _require,jq)
+	@echo "  All prerequisites found."
+
+define _require
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		if [ -n "$(strip $(2))" ] && [ -f "$(strip $(2))/$(strip $(1))" ]; then \
+			:; \
+		else \
+			echo "ERROR: $(strip $(1)) is required but not found."; \
+			exit 1; \
+		fi \
+	fi
+endef
+
+proto:
+	@echo "=== Generating protobuf code ==="
+	$(MAKE) -C $(ROOT)/kai-platform proto
+
+npm-install:
+	@echo "=== Installing UI dependencies ==="
+	cd $(ROOT)/kai-platform-ui && npm install
+
+# --- Observability ---
+
+build-observability: check-prereqs
+	@echo "=== Building observability ==="
+	mkdir -p $(SIM)/observability
+	cd $(ROOT)/kai-observability/cmd/server && go build -o $(SIM)/observability/observability .
+
 # --- Go binaries ---
 
-build-agent:
+build-agent: proto check-prereqs
 	@echo "=== Building agent ==="
 	mkdir -p $(SIM)/agent-kai-code $(SIM)/agent-opencode $(SIM)/agent-claude
 	cd $(ROOT)/kai-platform && go build -o $(SIM)/agent-kai-code/agent ./agent/cmd/agent
 	cp $(SIM)/agent-kai-code/agent $(SIM)/agent-opencode/agent
 	cp $(SIM)/agent-kai-code/agent $(SIM)/agent-claude/agent
 
-build-orchestrator:
+build-orchestrator: proto check-prereqs
 	@echo "=== Building orchestrator ==="
 	mkdir -p $(SIM)/orchestrator
 	cd $(ROOT)/kai-platform && go build -o $(SIM)/orchestrator/orchestrator ./orchestrator/cmd/server
 
-build-config-service:
+build-config-service: check-prereqs
 	@echo "=== Building config-service ==="
 	mkdir -p $(SIM)/config-service
 	cd $(ROOT)/kai-config-service/cmd/server && go build -o $(SIM)/config-service/config-service .
 
-build-kaictl:
+build-kaictl: check-prereqs
 	@echo "=== Building kaictl ==="
 	cd $(ROOT)/kai-cli-control && go build -o $(SIM)/kaictl .
 
 # --- UI ---
 
-build-ui:
+build-ui: npm-install check-prereqs
 	@echo "=== Building UI ==="
 	mkdir -p $(SIM)/ui
 	cd $(ROOT)/kai-platform-ui && npm run build && rm -rf $(SIM)/ui/dist && cp -r dist $(SIM)/ui/dist
 
 # --- Kai C# agent ---
 
-build-kai-code-cli:
+build-kai-code-cli: check-prereqs
 	@echo "=== Building kai-code C# agent ==="
 	mkdir -p $(SIM)/agent-kai-code/kai-code-cli
 	dotnet publish -c Release -o $(SIM)/agent-kai-code/kai-code-cli $(ROOT)/kai-code/src/KaiCode.Cli/KaiCode.Cli.csproj 2>&1 | tail -3
@@ -168,7 +209,7 @@ build-kai-code-cli:
 
 # --- Plugins ---
 
-build-plugins:
+build-plugins: check-prereqs
 	@echo "=== Building plugins ==="
 	$(MAKE) -C $(ROOT)/kai-plugins build
 
@@ -215,6 +256,7 @@ clean:
 	rm -rf $(SIM)/agent-opencode
 	rm -rf $(SIM)/agent-claude
 	rm -rf $(SIM)/config-service
+	rm -rf $(SIM)/observability
 	rm -rf $(SIM)/ui
 	rm -rf $(SIM)/tmp
 	rm -f  $(SIM)/kaictl

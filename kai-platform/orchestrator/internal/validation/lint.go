@@ -2,7 +2,10 @@ package validation
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 type LintGate struct {
@@ -72,33 +75,33 @@ func (g *LintGate) Run(ctx *Context) *Result {
 func (g *LintGate) detectCommands(repoDir string) [][]string {
 	switch g.name {
 	case TypeLint:
-		if commandExists("golangci-lint") {
+		if commandExists("golangci-lint") && hasAnyFile(repoDir, ".golangci.yml", ".golangci.yaml") {
 			return [][]string{{"golangci-lint", "run", "./..."}}
 		}
-		if commandExists("eslint") {
+		if commandExists("eslint") && hasESLintConfig(repoDir) {
 			return [][]string{{"eslint", "."}}
 		}
-		if commandExists("ruff") {
+		if commandExists("ruff") && hasAnyFile(repoDir, "pyproject.toml", ".ruff.toml", "ruff.toml") {
 			return [][]string{{"ruff", "check", "."}}
 		}
 	case TypeTypecheck:
-		if commandExists("go") {
+		if commandExists("go") && hasAnyFile(repoDir, "go.mod") {
 			return [][]string{{"go", "vet", "./..."}}
 		}
-		if commandExists("tsc") {
+		if commandExists("tsc") && hasAnyFile(repoDir, "tsconfig.json") {
 			return [][]string{{"tsc", "--noEmit"}}
 		}
-		if commandExists("pyright") {
+		if commandExists("pyright") && hasAnyFile(repoDir, "pyproject.toml") {
 			return [][]string{{"pyright"}}
 		}
 	case TypeTests:
-		if commandExists("go") {
+		if commandExists("go") && hasAnyFile(repoDir, "go.mod") {
 			return [][]string{{"go", "test", "./...", "-count=1"}}
 		}
-		if commandExists("npm") {
+		if commandExists("npm") && hasAnyFile(repoDir, "package.json") {
 			return [][]string{{"npm", "test"}}
 		}
-		if commandExists("pytest") {
+		if commandExists("pytest") && hasAnyFile(repoDir, "pyproject.toml") {
 			return [][]string{{"python", "-m", "pytest"}}
 		}
 	}
@@ -109,3 +112,28 @@ func commandExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
 }
+
+func hasAnyFile(dir string, names ...string) bool {
+	for _, name := range names {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func hasESLintConfig(dir string) bool {
+	if hasAnyFile(dir,
+		".eslintrc", ".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml",
+		".eslintrc.js", ".eslintrc.cjs", ".eslintrc.mjs") {
+		return true
+	}
+	pkgPath := filepath.Join(dir, "package.json")
+	data, err := os.ReadFile(pkgPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "\"eslintConfig\"")
+}
+
+

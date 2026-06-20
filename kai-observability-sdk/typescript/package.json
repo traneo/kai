@@ -1,0 +1,7 @@
+{
+  "name": "kai-observability-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for kai-observability log API",
+  "main": "src/index.ts",
+  "license": "MIT"
+}

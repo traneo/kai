@@ -11,6 +11,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/audit"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/workflow"
+	sdkgokit "kaiplatform.com/observability-sdk"
 )
 
 func (c *Coordinator) HandleMissionResult(ctx context.Context, runID, stepID, agentID string, result *kaipb.MissionResult, repoDir string) {
@@ -313,10 +314,6 @@ func entryFromFileChange(runID, stepID, missionID string, fc *kaipb.FileChange) 
 }
 
 func (c *Coordinator) StoreMissionEvent(missionID string, evt *kaipb.MissionEvent) {
-	if c.convStore == nil {
-		return
-	}
-
 	runID, stepID := c.resolveMissionRunStep(missionID)
 	if runID == "" {
 		return
@@ -326,11 +323,28 @@ func (c *Coordinator) StoreMissionEvent(missionID string, evt *kaipb.MissionEven
 	switch e := evt.Event.(type) {
 	case *kaipb.MissionEvent_Log:
 		entry = entryFromLog(runID, stepID, missionID, e.Log)
+		if c.obsLogger != nil {
+			level := string(sdkgokit.LevelInfo)
+			switch e.Log.Level {
+			case kaipb.LogLevel_LOG_LEVEL_WARN:
+				level = string(sdkgokit.LevelWarn)
+			case kaipb.LogLevel_LOG_LEVEL_ERROR:
+				level = string(sdkgokit.LevelError)
+			case kaipb.LogLevel_LOG_LEVEL_DEBUG:
+				level = string(sdkgokit.LevelDebug)
+			}
+			c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Info(e.Log.Message,
+				sdkgokit.F("source", e.Log.Source), sdkgokit.F("level", level), sdkgokit.F("sequence", e.Log.Sequence))
+		}
 	case *kaipb.MissionEvent_FileChange:
 		entry = entryFromFileChange(runID, stepID, missionID, e.FileChange)
+		if c.obsLogger != nil {
+			c.obsLogger.WithRunID(runID).WithStepID(stepID).WithMissionID(missionID).Info("file change",
+				sdkgokit.F("type", e.FileChange.Type.String()), sdkgokit.F("path", e.FileChange.Path))
+		}
 	}
 
-	if entry != nil {
+	if entry != nil && c.convStore != nil {
 		c.convStore.Append(entry)
 		c.publish(map[string]any{
 			"type":       "conversation",

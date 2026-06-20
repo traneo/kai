@@ -7,9 +7,10 @@ PIDS=()
 ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-50051}"
 HTTP_PORT="${HTTP_PORT:-8080}"
 CONFIG_PORT="${CONFIG_PORT:-8081}"
+OBSERVABILITY_PORT="${OBSERVABILITY_PORT:-8082}"
 
 KAI_ENDPOINT="${KAI_ENDPOINT:-http://192.168.0.44:11434/v1/}"
-KAI_MODEL="${KAI_MODEL:-gemma4-128k}"
+KAI_MODEL="${KAI_MODEL:-gemma4-12b-256k}"
 CLAUDE_API_URL="${CLAUDE_API_URL:-http://192.168.0.44:11434/v1}"
 CLAUDE_MODEL="${CLAUDE_MODEL:-gemma444-128k}"
 CLAUDE_API_KEY="${CLAUDE_API_KEY:-}"
@@ -36,7 +37,7 @@ echo "=== Build full project ==="
 make build
 
 echo "=== Creating tmp directories ==="
-mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai-code,agent-opencode,agent-claude}
+mkdir -p "$ROOT/tmp"/{config-service,orchestrator,agent-kai-code,agent-opencode,agent-claude,observability-logs}
 
 # ---- Config service ----
 
@@ -57,6 +58,26 @@ for i in $(seq 1 15); do
 	sleep 1
 done
 
+# ---- Observability ----
+
+echo "=== Starting observability ==="
+OBSERVABILITY_FILE_DUMP=true \
+OBSERVABILITY_FILE_DUMP_PATH="$ROOT/tmp/observability-logs" \
+	"$ROOT/observability/observability" --port "$OBSERVABILITY_PORT" &
+OBS_PID=$!
+PIDS+=($OBS_PID)
+
+for i in $(seq 1 15); do
+	if curl -sf "http://localhost:${OBSERVABILITY_PORT}/healthz" >/dev/null 2>&1; then
+		echo "  Observability ready"
+		break
+	fi
+	if [ "$i" -eq 15 ]; then echo "Observability failed to start"; exit 1; fi
+	sleep 1
+done
+
+OBSERVABILITY_URL="http://localhost:${OBSERVABILITY_PORT}"
+
 # ---- Orchestrator ----
 
 echo "=== Starting orchestrator ==="
@@ -64,6 +85,7 @@ KAI_PLUGIN_DIR="$ROOT/orchestrator/.kai-code/plugins" \
 	PORT="$ORCHESTRATOR_PORT" \
 	HTTP_PORT="$HTTP_PORT" \
 	CONFIG_SERVICE_URL="http://localhost:${CONFIG_PORT}" \
+	OBSERVABILITY_URL="${OBSERVABILITY_URL}" \
 	"$ROOT/orchestrator/orchestrator" \
 	--http-port "$HTTP_PORT" \
 	--config-service-url "http://localhost:${CONFIG_PORT}" &
@@ -103,7 +125,7 @@ CONFIG_JSON=$(cat <<ENDJSON
           "data": {
             "branchPrefix": "kai-code/",
             "autoCommit": true,
-            "maxContextTokens": 32768,
+            "maxContextTokens": 256000,
             "agents": {
               "coder": {
                 "endpoint": "${KAI_ENDPOINT}",
@@ -215,6 +237,7 @@ echo "  local-coder-1  →  kai-code    (gRPC :50052)"
 echo "  local-coder-2  →  opencode    (gRPC :50053)"
 echo "  local-coder-3  →  claude-code (gRPC :50054)"
 echo ""
+echo "  Observability:   http://localhost:${OBSERVABILITY_PORT}"
 echo "  Config-service:  http://localhost:${CONFIG_PORT}"
 echo "  Orchestrator:    http://localhost:${HTTP_PORT}  |  gRPC :${ORCHESTRATOR_PORT}"
 echo "  UI:              http://localhost:5173"

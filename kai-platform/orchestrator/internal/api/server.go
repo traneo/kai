@@ -15,6 +15,7 @@ import (
 	"kaiplatform.com/orchestrator/internal/cost"
 	"kaiplatform.com/orchestrator/internal/validation"
 	"kaiplatform.com/orchestrator/internal/workflow"
+	sdkgokit "kaiplatform.com/observability-sdk"
 )
 
 type AgentInfo struct {
@@ -31,6 +32,12 @@ type Server struct {
 	valRunner   *validation.Runner
 	costTracker *cost.Tracker
 	secretStore coordinator.SecretStore
+	obsLogger   *sdkgokit.Logger
+}
+
+func (s *Server) SetObsLogger(l *sdkgokit.Logger) {
+	s.obsLogger = l
+	s.coordinator.SetObsLogger(l)
 }
 
 func (s *Server) SetSecretStore(store coordinator.SecretStore) {
@@ -118,6 +125,18 @@ func (s *Server) ReportLog(stream grpc.ClientStreamingServer[kaipb.LogEntry, kai
 			return err
 		}
 		log.Printf("[log] %s | %s", entry.Source, entry.Message)
+		if s.obsLogger != nil {
+			level := string(sdkgokit.LevelInfo)
+			switch entry.Level {
+			case kaipb.LogLevel_LOG_LEVEL_WARN:
+				level = string(sdkgokit.LevelWarn)
+			case kaipb.LogLevel_LOG_LEVEL_ERROR:
+				level = string(sdkgokit.LevelError)
+			case kaipb.LogLevel_LOG_LEVEL_DEBUG:
+				level = string(sdkgokit.LevelDebug)
+			}
+			s.obsLogger.Info(entry.Message, sdkgokit.F("source", entry.Source), sdkgokit.F("level", level), sdkgokit.F("mission_id", entry.MissionId), sdkgokit.F("sequence", entry.Sequence))
+		}
 	}
 }
 
@@ -135,6 +154,12 @@ func (s *Server) ReportFileChange(stream grpc.ClientStreamingServer[kaipb.FileCh
 }
 
 func (s *Server) ReportResult(_ context.Context, r *kaipb.MissionResult) (*kaipb.ResultAck, error) {
+	if s.obsLogger != nil {
+		s.obsLogger.WithMissionID(r.MissionId).Info("mission result",
+			sdkgokit.F("success", r.Success), sdkgokit.F("exit_code", r.ExitCode),
+			sdkgokit.F("prompt_tokens", r.TokenUsagePrompt), sdkgokit.F("completion_tokens", r.TokenUsageCompletion),
+			sdkgokit.F("duration_ms", r.DurationMs))
+	}
 	log.Printf("result: mission=%s success=%v exit_code=%d tokens=%d/%d duration=%dms",
 		r.MissionId, r.Success, r.ExitCode,
 		r.TokenUsagePrompt, r.TokenUsageCompletion, r.DurationMs)
@@ -240,6 +265,10 @@ func (s *Server) AssignMissionToAgent(ctx context.Context, agentID, missionID, p
 			}
 			if err != nil {
 				log.Printf("mission %s stream error: %v", missionID, err)
+				if s.obsLogger != nil {
+					s.obsLogger.WithMissionID(missionID).Error("mission stream error",
+						sdkgokit.F("error", err.Error()))
+				}
 				return
 			}
 			s.coordinator.StoreMissionEvent(missionID, evt)

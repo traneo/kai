@@ -21,6 +21,7 @@ import (
 	"kaiplatform.com/agent/internal/runner"
 	"kaiplatform.com/agent/internal/sandbox"
 	"kaiplatform.com/agent/internal/server"
+	sdkgokit "kaiplatform.com/observability-sdk"
 )
 
 func main() {
@@ -30,6 +31,13 @@ func main() {
 	listenPort := flag.String("listen", getEnv("AGENT_LISTEN", ":50052"), "agent gRPC server listen address")
 	timeout := flag.Duration("timeout", getEnvDuration("MISSION_TIMEOUT", 30*time.Minute), "per-mission timeout")
 	flag.Parse()
+
+	obsEndpoint := os.Getenv("OBSERVABILITY_URL")
+	var obsLogger *sdkgokit.Logger
+	if obsEndpoint != "" {
+		obsLogger = sdkgokit.New(obsEndpoint, "agent").WithAgentID(*agentID)
+		defer obsLogger.Close()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -48,20 +56,27 @@ func main() {
 	go func() {
 		if err := cl.HeartbeatLoop(ctx); err != nil {
 			log.Printf("heartbeat loop ended: %v", err)
+			if obsLogger != nil {
+				obsLogger.Error("heartbeat loop ended", sdkgokit.F("error", err.Error()))
+			}
 		}
 	}()
 
 	runner.DiscoverAndLoadPlugins(runner.DefaultPluginDir())
 
 	handler := &kaiMissionHandler{
-		cl:      cl,
-		timeout: *timeout,
+		cl:        cl,
+		timeout:   *timeout,
+		obsLogger: obsLogger,
 	}
 
 	agentSrv := server.New(handler)
 	agentSrv.OnComplete(func(res *kaipb.MissionResult) {
 		if _, err := cl.ReportResult(context.Background(), res); err != nil {
 			log.Printf("report result to orchestrator: %v", err)
+			if obsLogger != nil {
+				obsLogger.WithMissionID(res.MissionId).Error("report result to orchestrator failed", sdkgokit.F("error", err.Error()))
+			}
 		}
 	})
 
@@ -79,6 +94,9 @@ func main() {
 
 	go func() {
 		log.Printf("agent gRPC server listening on %s", *listenPort)
+		if obsLogger != nil {
+			obsLogger.Info("agent gRPC server listening", sdkgokit.F("addr", *listenPort))
+		}
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("serve: %v", err)
 		}
@@ -86,12 +104,16 @@ func main() {
 
 	<-ctx.Done()
 	log.Println("shutting down")
+	if obsLogger != nil {
+		obsLogger.Info("agent shutting down")
+	}
 	grpcServer.GracefulStop()
 }
 
 type kaiMissionHandler struct {
-	cl      *client.Client
-	timeout time.Duration
+	cl        *client.Client
+	timeout   time.Duration
+	obsLogger *sdkgokit.Logger
 }
 
 func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mission, report func(*kaipb.LogEntry), result func(*kaipb.MissionResult)) {
@@ -119,6 +141,9 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 
 	if wsErr != nil {
 		log.Printf("sandbox setup failed: %v", wsErr)
+		if h.obsLogger != nil {
+			h.obsLogger.WithMissionID(mission.Id).Error("sandbox setup failed", sdkgokit.F("error", wsErr.Error()))
+		}
 		result(&kaipb.MissionResult{
 			MissionId: mission.Id,
 			Success:   false,
@@ -138,6 +163,39 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 		runnerType = mission.Policy.Runner
 	}
 
+	// Repo-scoped git helpers used both before and after the runner executes.
+	gitOut := func(args ...string) (string, error) {
+		all := append([]string{"-c", "credential.helper="}, args...)
+		cmd := exec.CommandContext(ctx, "git", all...)
+		cmd.Dir = sb.RepoDir
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	logGit := func(args ...string) {
+		out, err := gitOut(args...)
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Message:   fmt.Sprintf("git %s: %s", strings.Join(args, " "), out),
+		})
+		if err != nil {
+			log.Printf("git %s: %v", args[0], err)
+		}
+	}
+
+	// Set commit author identity scoped to this workspace repo.
+	if sb.RepoDir != "" {
+		gitUser := runnerType
+		gitEmail := fmt.Sprintf("%s@kai-platform", runnerType)
+		gitOut("config", "user.name", gitUser)
+		gitOut("config", "user.email", gitEmail)
+		report(&kaipb.LogEntry{
+			MissionId: mission.Id,
+			Source:    "system",
+			Message:   fmt.Sprintf("git config user = %s <%s>", gitUser, gitEmail),
+		})
+	}
+
 	agentDir, _ := filepath.Split(os.Args[0])
 
 	rnr, err := runner.New(runnerType, runner.Config{
@@ -153,6 +211,9 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 			Message:   fmt.Sprintf("unknown runner %q: %v", runnerType, err),
 		})
 		log.Printf("unknown runner %q: %v", runnerType, err)
+		if h.obsLogger != nil {
+			h.obsLogger.WithMissionID(mission.Id).Error("unknown runner", sdkgokit.F("runner", runnerType), sdkgokit.F("error", err.Error()))
+		}
 		result(&kaipb.MissionResult{
 			MissionId: mission.Id,
 			Success:   false,
@@ -180,6 +241,9 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 			Message:   fmt.Sprintf("write config failed: %v", err),
 		})
 		log.Printf("write config failed: %v", err)
+		if h.obsLogger != nil {
+			h.obsLogger.WithMissionID(mission.Id).Error("write config failed", sdkgokit.F("error", err.Error()))
+		}
 		result(&kaipb.MissionResult{
 			MissionId: mission.Id,
 			Success:   false,
@@ -211,6 +275,9 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 	runResult, err := rnr.Run(ctx, mission.Prompt, onLine)
 	if err != nil {
 		log.Printf("run failed: %v", err)
+		if h.obsLogger != nil {
+			h.obsLogger.WithMissionID(mission.Id).Error("runner run failed", sdkgokit.F("error", err.Error()))
+		}
 		result(&kaipb.MissionResult{
 			MissionId: mission.Id,
 			Success:   false,
@@ -228,26 +295,6 @@ func (h *kaiMissionHandler) HandleMission(ctx context.Context, mission *kaipb.Mi
 
 	if runResult.Success && mission.Workspace != nil && mission.Workspace.RepoUrl != "" {
 		branch := mission.Workspace.Branch
-
-		gitOut := func(args ...string) (string, error) {
-			all := append([]string{"-c", "credential.helper="}, args...)
-			cmd := exec.CommandContext(ctx, "git", all...)
-			cmd.Dir = sb.RepoDir
-			out, err := cmd.CombinedOutput()
-			return strings.TrimSpace(string(out)), err
-		}
-
-		logGit := func(args ...string) {
-			out, err := gitOut(args...)
-			report(&kaipb.LogEntry{
-				MissionId: mission.Id,
-				Source:    "system",
-				Message:   fmt.Sprintf("git %s: %s", strings.Join(args, " "), out),
-			})
-			if err != nil {
-				log.Printf("git %s: %v", args[0], err)
-			}
-		}
 
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,

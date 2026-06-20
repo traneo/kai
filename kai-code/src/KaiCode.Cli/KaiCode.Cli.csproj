@@ -24,4 +24,8 @@
     <ProjectReference Include="..\KaiCode.Agents\KaiCode.Agents.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\kai-observability-sdk\dotnet\KaiObservability.Sdk.csproj" />
+  </ItemGroup>
+
 </Project>

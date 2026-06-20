@@ -1,5 +1,6 @@
 #define KAI_UNSAFE  // Uncomment to bypass ALL tool restrictions (debug only)
 
+using KaiObservability.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -44,6 +45,11 @@ public static class ServiceProviderFactory
         {
             builder.ClearProviders();
             builder.AddConsole();
+            var obsUrl = Environment.GetEnvironmentVariable("OBSERVABILITY_URL");
+            if (!string.IsNullOrEmpty(obsUrl))
+            {
+                builder.AddKaiObservability(obsUrl, "kai-code");
+            }
             builder.SetMinimumLevel(LogLevel.Information);
         });
 

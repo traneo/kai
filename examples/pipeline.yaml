@@ -11,29 +11,56 @@ repo:
   token_ref: forgejo-token
 
 steps:
+  # ── Scaffold ──────────────────────────────────────────────
   - id: scaffold
-    prompt: "Initialize dotnet project with standard layout"
+    prompt: >
+      Initialize a new .NET solution at the repo root with standard
+      project layout under ./internal/. Create a classlib for domain
+      models, a classlib for data access, a web API project, and a
+      test project. Add solution file with all projects. Verify build
+      passes before completing.
     policy:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
-      allowed_commands: [dotnet new *, dotnet build *, mkdir *]
+      allowed_commands: [dotnet new *, dotnet build *, dotnet sln *, mkdir *]
       allowed_dirs: [./]
+      timeout_seconds: 300
+      max_retries: 1
+      agent: kai
+    validation:
+      - exit_zero
+      - lint
     approval: required
 
+  # ── Domain Models ─────────────────────────────────────────
   - id: domain-models
     depends_on: [scaffold]
-    prompt: "Define domain models and interfaces"
+    prompt: >
+      Design and implement the core domain models and repository
+      interfaces. Include entities for the business domain with
+      value objects, enums, and validation. Define repository
+      interfaces for each aggregate. Use C# records for value
+      objects. Do NOT implement persistence yet.
     policy:
       allowed_tools: [read_file, write_file, glob, search, list_dir]
       allowed_dirs: [./internal]
       save_state: true
+      agent: kai
+    validation:
+      - lint
     approval: required
 
+  # ── Repository Layer ──────────────────────────────────────
   - id: implement-repo
     depends_on: [domain-models]
-    prompt: "Implement repository layer with PostgreSQL"
+    prompt: >
+      Implement the repository layer backed by PostgreSQL using
+      Entity Framework Core. Create DbContext with entity
+      configurations, migrations, and repository implementations
+      for each interface defined in domain-models. Add PostgreSQL
+      NuGet packages. Ensure the build succeeds.
     policy:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
-      allowed_commands: [dotnet build *, dotnet add *]
+      allowed_commands: [dotnet build *, dotnet add *, dotnet ef *]
       allowed_dirs:
         - ./internal/repo
         - ./internal/models
@@ -41,11 +68,21 @@ steps:
       max_retries: 2
       retry_delay_seconds: 10
       retry_backoff: exponential
+      save_state: true
+    validation:
+      - exit_zero
+      - lint
     approval: optional
 
+  # ── REST API ──────────────────────────────────────────────
   - id: implement-api
     depends_on: [domain-models]
-    prompt: "Implement REST API handlers"
+    prompt: >
+      Implement REST API endpoints under ./internal/api following
+      the repository interfaces. Use minimal API style (MapGet,
+      MapPost, etc.) or controllers as appropriate. Include request
+      validation, error mapping to HTTP status codes, and structured
+      JSON responses. Wire up DI in Program.cs. Build must pass.
     policy:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
       allowed_commands: [dotnet build *, dotnet add *]
@@ -56,24 +93,42 @@ steps:
       max_retries: 2
       retry_delay_seconds: 10
       retry_backoff: exponential
+    validation:
+      - exit_zero
+      - lint
     approval: optional
 
+  # ── Unit Tests ────────────────────────────────────────────
   - id: unit-tests
     depends_on: [implement-repo, implement-api]
-    prompt: "Write unit tests for all packages"
+    prompt: >
+      Write unit tests for all packages in the test project using
+      xUnit and Moq. Cover domain models (validation edge cases,
+      equality, invariants), repository interfaces (mock-based),
+      and API endpoint handlers (request/response serialization,
+      error paths). Use FluentAssertions for readable assertions.
+      All tests must pass.
     policy:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
-      allowed_commands: [dotnet test *, dotnet build *]
+      allowed_commands: [dotnet test *, dotnet build *, dotnet add *]
       allowed_dirs: [./internal]
       max_retries: 1
       timeout_seconds: 300
     validation:
       - exit_zero
+      - tests
     approval: optional
 
+  # ── Integration Tests ─────────────────────────────────────
   - id: integration-tests
     depends_on: [unit-tests]
-    prompt: "Write integration tests and run them"
+    prompt: >
+      Write integration tests against a test PostgreSQL instance
+      (use Testcontainers for dotnet). Cover full CRUD flows through
+      the repository layer, API endpoint end-to-end tests with
+      WebApplicationFactory, and any database migration scenarios.
+      Keep tests deterministic — clean up state between runs.
+      All tests must pass.
     policy:
       allowed_tools: [read_file, write_file, run, glob, search, list_dir]
       allowed_commands: [dotnet test *, dotnet build *, dotnet add *]
@@ -82,15 +137,26 @@ steps:
       timeout_seconds: 900
     validation:
       - exit_zero
+      - tests
+      - diff_review
     approval: required
 
+  # ── Documentation ─────────────────────────────────────────
   - id: docs
     depends_on: [integration-tests, implement-repo, implement-api]
-    prompt: "Generate API documentation and README"
+    prompt: >
+      Generate API documentation and update the README. Use
+      Swagger/OpenAPI to produce docs/api.yaml and docs/api.md.
+      Write a comprehensive README.md covering project overview,
+      setup instructions, architecture decisions, configuration
+      reference, and a "how to run" guide. Reference all steps
+      the pipeline executed.
     policy:
       allowed_tools: [read_file, write_file, glob, search, list_dir]
       allowed_dirs:
         - ./docs
         - ./
       max_retries: 1
+    validation:
+      - diff_review
     approval: optional
