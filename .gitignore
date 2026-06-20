@@ -53,3 +53,12 @@ Thumbs.db
 
 # Drafts (kept on disk, not published)
 drafts/
+
+# ignore the test assets
+simulation/agent-*
+simulation/config-*
+simulation/observability*
+simulation/orchestrator*
+simulation/plan-*
+simulation/kaictl
+simulation/ui*
