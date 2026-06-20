@@ -7,58 +7,103 @@
 
 # Kai
 
-> **A pipeline platform for AI-assisted software development.**
+> **The open-source platform for AI-driven software pipelines.**
 
-Kai lets you describe multi-step software tasks as YAML pipelines. The platform orchestrates AI coding agents to implement, test, validate, and deliver the result — with validation gates, human approval, and a full audit trail.
+Kai is a self-hostable pipeline engine that orchestrates AI coding agents (kai-code, opencode, Claude Code) through multi-step workflows — with validation gates, human approvals, parallel DAG execution, git integration, and a full audit trail.
+
+Think "CI/CD, but the steps are written and executed by AI."
+
+---
+
+## Why Kai?
+
+| Problem | How Kai solves it |
+|---------|-------------------|
+| AI coding tools work on one task at a time | **DAG pipelines** — chain steps with dependencies; run in parallel where possible |
+| No validation on AI output | **Validation gates** — lint, typecheck, test, diff review after every step |
+| Black-box AI | **Audit trail** — every prompt, file change, and decision is logged |
+| No human oversight | **Approval gates** — block steps until a human signs off |
+| "Make it a PR" | **Git integration** — clone, branch, commit, push, PR — all automated |
+| Multiple AI backends | **Pluggable runners** — kai-code, opencode, Claude Code, or your own |
+| "Where do I even start?" | **Plan Builder** — describe your project in plain English, the LLM builds the pipeline for you |
 
 ---
 
 ## How it works
 
 ```
-You define a pipeline in YAML
-        |
-        v
-+----------------------------------------+
-|          Orchestrator (Go)             |
-|   parse -> DAG -> clone repo -> dispatch
-|   gates -> approval -> push / PR       |
-+----------------+-----------------------+
-                 | gRPC
-                 v
-+----------------------------------------+
-|           Agent workers (Go)           |
-|  +--------+ +--------+ +--------+      |
-|  |  kai   | |opencode| |claude- |      |
-|  | agent  | | agent  | |  code  |      |
-|  |        | |        | | agent  |      |
-|  +----+---+ +----+---+ +----+---+      |
-|       |         |         |            |
-|       | runner plugins (Go)            |
-|       v         v         v             |
-|    kai-code CLI   opencode    claude        |
-|   (C# .NET)  binary     code CLI       |
-|       |         |         |            |
-|       +---------+---------+            |
-|                 v                       |
-|         LLM provider                   |
-|  (OpenAI, Ollama, Anthropic, etc.)     |
-+----------------------------------------+
-                 |
-                 v
-        Git: branch push or PR
+[Plan Builder]  ──conversation──>  spec  ──LLM──>  pipeline.yaml
+                                                          |
+                                                          v
+                                          +-----------------------------+
+                                          |      Orchestrator (Go)      |
+                                          |  parse → DAG → clone repo   |
+                                          |  → dispatch → gates → PR    |
+                                          +----------------+------------+
+                                                           | gRPC
+                                                           v
+                                          +-----------------------------+
+                                          |       Agent Workers         |
+                                          |  +---------+  +---------+   |
+                                          |  |kai-code |  |opencode |   |
+                                          |  | (C#)    |  |  (Go)   |   |
+                                          |  +----+----+  +----+----+   |
+                                          |       |            |        |
+                                          |       v            v        |
+                                          |   LLM provider              |
+                                          |  (Ollama / OpenAI / etc.)   |
+                                          +-----------------------------+
 ```
 
-A pipeline run goes through this flow:
+---
 
-1. You submit a YAML pipeline via the Web UI, `kaictl`, or `POST /api/pipelines`.
-2. The orchestrator parses the YAML, builds a DAG of steps, and clones the target repo.
-3. Ready steps are dispatched over gRPC to idle agents (parallel where the DAG allows).
-4. Each agent spawns its runner plugin, which runs the AI coding tool against an LLM.
-5. When a step completes, the orchestrator runs the configured validation gates.
-6. If a step requires human approval, it blocks until someone approves via the UI or `kaictl`.
-7. On success the orchestrator commits, pushes, or opens a PR — depending on the pipeline's `output.type`.
-8. Every event is written to the audit log and streamed live over SSE.
+## What's in the box
+
+### kai-platform — Pipeline engine (Go)
+The orchestrator and agent worker. Parses YAML into a DAG, dispatches steps to agents via gRPC, runs validation gates, manages retries, handles approvals, and pushes results to git. Built with:
+- **DAG scheduler** — static analysis of `depends_on`, cycle detection, parallel execution
+- **Step state machine** — `pending → ready → running → validating → passed/failed → blocked`
+- **Retry with backoff** — linear or exponential, configurable per step
+- **Hot-reload config** — pool config, auth, and backends reload without restart
+
+### kai-plan-builder — Spec-to-YAML via LLM (Go)
+A conversational agent that walks you through building a complete pipeline spec. No YAML knowledge needed.
+- **Chat interface** — tell it what you want, it asks clarifying questions
+- **Spec editing** — LLM writes a structured spec, you edit it live
+- **YAML generation** — converts the spec to a valid `pipeline.yaml` with retry + self-correction
+- **Visual editor** — review and tweak the generated pipeline in a DAG view
+
+### kai-platform-ui — Pipeline monitor (React 19)
+Dashboard for tracking pipeline runs, agent status, queue depth, and audit logs. All real-time via SSE.
+
+### kai-plan-builder-ui — Spec builder UI (React 19)
+Split-panel interface: spec editor on the left, LLM chat on the right. Transition to a visual pipeline editor with raw YAML tab for the final review.
+
+### kai-code — AI agent runtime (C# .NET)
+The production agent that executes pipeline steps against an LLM. Reads the repo, writes code, runs commands, and reports results back to the orchestrator.
+
+### kai-cli-control — CLI tool (Go)
+`kaictl` — manage pipelines, agents, secrets, and config from the terminal. JSON output for scripting.
+
+### kai-config-service — Versioned config (Go)
+Draft → publish → activate → rollback lifecycle for platform config. Most settings hot-reload without restarting services.
+
+### kai-observability — Centralized logs (Go)
+Receives structured log entries from all services via the SDK. Query by service, level, run ID, step ID. Live SSE stream. PostgreSQL or in-memory storage.
+
+### kai-observability-ui — Log viewer (React 19)
+Filter, search, and stream logs in real time. Performance charts, run timelines, error dashboards.
+
+### kai-observability-sdk — Logging SDKs (Go / TypeScript / C#)
+Non-blocking batched logging with scoped loggers (`WithRunID()`, `WithStepID()`, etc.). Drop-in integration.
+
+### kai-plugins — Plugin ecosystem (Go)
+Extend every part of the platform without modifying core:
+- **Runners** — `kai-code`, `opencode`, `claude-code` — AI tool integrations
+- **Gates** — `conventional-commits` — custom validation logic
+- **Git providers** — `forgejo` — platform-specific git + PR APIs
+- **Secrets** — `env` — secret storage backends
+- **Archive** — `local-fs` — step state persistence
 
 ---
 
@@ -81,7 +126,6 @@ steps:
   - id: impl
     prompt: |
       Add a POST /api/register endpoint to the Go HTTP server.
-      Hash passwords with bcrypt and return 201 on success.
     policy:
       allowed_tools: [read_file, write_file, run, search, glob]
       allowed_commands: ["go *"]
@@ -94,158 +138,62 @@ steps:
     approval: optional
 ```
 
-Steps form a DAG via `depends_on`. See [examples/](examples/) for full pipelines.
-
----
-
-## Requirements
-
-- **Go 1.25+** (orchestrator, config service, agent worker, plugins)
-- **.NET 10 SDK** (kai-code CLI agent — the C# .NET agent runtime)
-- **Node.js 20+** (web UI build)
-- **Docker** (optional, for the containerized simulation)
-- **jq** (used by `start-dev.sh`)
-
-An OpenAI-compatible LLM endpoint is required to actually run pipelines.
+See [examples/](examples/) for real pipelines and [docs/pipeline-schema.yaml](docs/pipeline-schema.yaml) for the full schema.
 
 ---
 
 ## Quick start
 
-The fastest way to try the platform is the simulation bundle. It builds and starts every component together (config service, orchestrator, three agent workers, the web UI).
-
 ```bash
 cd simulation
-make build          # compiles Go, .NET, plugins, and UI
-make env-files      # generates per-service .env files
-make start-dev      # runs everything on the host
+make build          # builds everything
+make start-dev      # runs everything locally
 ```
 
-Or with Docker:
-
-```bash
-cd simulation
-make docker-build
-docker compose up
-```
-
-Once everything is up:
-
-| Service            | URL                          |
-| ------------------ | ---------------------------- |
-| Web UI             | http://localhost:5173        |
-| Orchestrator HTTP  | http://localhost:8080        |
-| Orchestrator gRPC  | localhost:50051              |
-| Config service     | http://localhost:8081        |
-| Agent kai          | localhost:50052              |
-| Agent opencode     | localhost:50053              |
-| Agent claude-code  | localhost:50054              |
+| Service              | URL/Port                   |
+|----------------------|----------------------------|
+| Platform UI          | http://localhost:5173      |
+| Plan Builder UI      | http://localhost:5175      |
+| Orchestrator API     | http://localhost:8080      |
+| Plan Builder API     | http://localhost:8083      |
+| Config Service       | http://localhost:8081      |
+| Observability API    | http://localhost:8082      |
+| Observability UI     | http://localhost:5174      |
 
 Submit a pipeline:
-
 ```bash
-# Using kaictl
-kaictl login http://localhost:8080 ""
 kaictl pipeline create --file examples/pipeline-forgejo.yaml
+# Or open the Plan Builder: http://localhost:5175
 ```
 
 ---
 
-## What Kai gives you
+## Requirements
 
-- **DAG pipelines** — Steps run in parallel when the dependency graph allows it, with cycle detection.
-- **Pluggable runners** — The C# .NET kai-code CLI, opencode, or Claude Code can each be used as the agent runtime for a pool. Add your own by writing a runner plugin.
-- **10 validation gates** — `exit_zero`, `lint`, `typecheck`, `tests`, `diff_review`, `approval`, `security_scan`, `license_check`, `breaking_changes`, `code_quality`. Add custom gates as plugins.
-- **Human-in-the-loop** — Per-step approval gates that block a step until a human approves via the UI or `kaictl`.
-- **Policy enforcement** — Per-step `allowed_tools`, `allowed_commands`, `allowed_dirs`. Misuse is rejected before any code runs.
-- **Pluggable git providers** — GitHub, GitLab, Bitbucket, and a Forgejo plugin ship in the box.
-- **Pluggable secrets** — Environment variables, HashiCorp Vault, in-memory, and plugin backends.
-- **Audit trail** — Event-sourced log of every pipeline and step transition, queryable from the API, `kaictl`, or the UI.
-- **Live telemetry** — Server-Sent Events stream stdout, stderr, and step transitions in real time.
-- **Versioned config** — Draft, publish, activate, roll back. Most settings hot-reload; auth/TLS changes flag for restart.
-- **Self-hosted** — Everything runs on your infrastructure. No cloud dependency.
+- Go 1.25+, Node.js 20+, .NET 10 SDK, jq
+- An OpenAI-compatible LLM endpoint (Ollama, OpenAI, etc.)
 
 ---
 
-## Repository layout
+## Repository
 
 ```
-kai-project/
-|-- kai-code/                      # C# .NET agent runtime (the kai-code CLI)
-|-- kai-platform/             # Go orchestrator + agent worker
-|   |-- orchestrator/         #   workflow engine, API, agent pool, gates
-|   |-- agent/                #   worker that hosts runner plugins
-|-- kai-platform-ui/          # React 19 + TypeScript + Vite 6 web UI
-|-- kai-cli-control/          # kaictl - Go CLI for the platform
-|-- kai-config-service/       # Versioned config service
-|-- kai-plugins/              # Runner, gate, git provider, secrets, archive plugins
-|-- simulation/               # Build scripts, dev runner, Docker compose
-|-- examples/                 # Sample pipeline YAML files
-`-- docs/                     # Architecture, feature catalog, roadmap
+kai/
+├── kai-platform/             # Pipeline engine — orchestrator + agent worker
+├── kai-platform-ui/          # Pipeline monitoring dashboard
+├── kai-plan-builder/         # LLM-powered spec-to-YAML generator
+├── kai-plan-builder-ui/      # Spec builder interface
+├── kai-code/                 # C# .NET AI agent runtime
+├── kai-cli-control/          # kaictl CLI
+├── kai-config-service/       # Versioned configuration management
+├── kai-observability/        # Centralized logging service
+├── kai-observability-ui/     # Log viewer and analysis
+├── kai-observability-sdk/    # Logging SDKs (Go / TS / C#)
+├── kai-plugins/              # Plugin ecosystem
+├── simulation/               # Build + dev runner
+├── examples/                 # Sample pipeline YAMLs
+└── docs/                     # Architecture + schema reference
 ```
-
----
-
-## Plugin system
-
-Plugins are standalone binaries discovered at startup from `$KAI_PLUGIN_DIR` (defaults to `./.kai/plugins` per service). Each plugin ships with a `plugin.json` manifest:
-
-```json
-{
-  "name": "my-gate",
-  "version": "1.0.0",
-  "api_version": "v1",
-  "type": "gate",
-  "binary": "my-gate"
-}
-```
-
-| Plugin type    | Role                               | Examples in the repo             |
-| -------------- | ---------------------------------- | -------------------------------- |
-| `runner`       | AI agent runtime                   | kai-code, opencode, claude-code       |
-| `gate`         | Validation gate                    | conventional-commits             |
-| `gitprovider`  | Git platform integration           | forgejo                          |
-| `secrets`      | Secret store backend               | env                              |
-| `archive`      | Workspace state storage            | local-fs                         |
-
-See [kai-plugins/](kai-plugins/) and [docs/architecture.md](docs/architecture.md) for the contract and how to add your own.
-
----
-
-## Development
-
-```bash
-# Build everything from source
-cd simulation
-make build
-
-# Run all services in the foreground
-make start-dev
-
-# Clean
-make clean
-```
-
-Individual components build with their native toolchains:
-
-```bash
-# Orchestrator / agent / plugins
-cd kai-platform && make build
-
-# kai-code CLI
-cd kai-code && dotnet build
-
-# Web UI
-cd kai-platform-ui && npm install && npm run dev
-```
-
----
-
-## Documentation
-
-- [docs/architecture.md](docs/architecture.md) - System architecture
-- [kai-cli-control/README.md](kai-cli-control/README.md) - kaictl reference
-- [simulation/README.md](simulation/README.md) - Simulation / dev environment
 
 ---
 
