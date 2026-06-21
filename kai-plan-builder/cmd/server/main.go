@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	sdkgokit "kaiplatform.com/observability-sdk"
 	"github.com/kaiplatform/plan-builder/internal/api"
@@ -43,7 +44,7 @@ func main() {
 		Logger:    obsLogger,
 	}
 
-	handler := api.Handler(deps)
+	handler := loggingMiddleware(obsLogger, api.Handler(deps))
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("plan-builder listening on %s", addr)
@@ -52,6 +53,31 @@ func main() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+type logWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *logWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func loggingMiddleware(logger *sdkgokit.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := &logWriter{ResponseWriter: w, status: http.StatusOK}
+		start := time.Now()
+		next.ServeHTTP(lw, r)
+		elapsed := time.Since(start)
+		logger.Info("http request",
+			sdkgokit.F("method", r.Method),
+			sdkgokit.F("path", r.URL.Path),
+			sdkgokit.F("status", lw.status),
+			sdkgokit.F("duration_ms", elapsed.Milliseconds()),
+		)
+	})
 }
 
 func getEnv(key, fallback string) string {

@@ -32,6 +32,7 @@ type kaiCodeRunnerData struct {
 	MaxContextTokens int                       `json:"maxContextTokens,omitempty"`
 	Limits           *kaiCodeLimitsConfig          `json:"limits,omitempty"`
 	Agents           map[string]*kaiCodeAgentConfig `json:"agents,omitempty"`
+	LogLevel         string                    `json:"logLevel,omitempty"`
 }
 
 type kaiCodeConfig struct {
@@ -43,6 +44,7 @@ type kaiCodeConfig struct {
 	MaxContextTokens int                       `json:"maxContextTokens,omitempty"`
 	Limits           *kaiCodeLimitsConfig          `json:"limits,omitempty"`
 	Agents           map[string]*kaiCodeAgentConfig `json:"agents,omitempty"`
+	LogLevel         string                    `json:"logLevel,omitempty"`
 }
 
 type kaiCodeAgentConfig struct {
@@ -158,6 +160,7 @@ func main() {
 		MaxContextTokens: kaiData.MaxContextTokens,
 		Limits:           kaiData.Limits,
 		Agents:           kaiData.Agents,
+		LogLevel:         kaiData.LogLevel,
 	}
 	if kaiData.AutoCommit != nil && *kaiData.AutoCommit {
 		cfg.AutoCommit = kaiData.AutoCommit

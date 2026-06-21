@@ -1,14 +1,17 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
 
 public sealed class RunCommandTool : ITool
 {
     private readonly PolicyEnforcer _policy;
+    private readonly ILogger<RunCommandTool> _logger;
 
-    public RunCommandTool(PolicyEnforcer policy)
+    public RunCommandTool(PolicyEnforcer policy, ILogger<RunCommandTool> logger)
     {
         _policy = policy;
+        _logger = logger;
     }
 
     public string Name => "run";
@@ -23,14 +26,14 @@ public sealed class RunCommandTool : ITool
         if (!_policy.IsAllowedTool("run"))
         {
             var msg = "Policy violation: tool 'run' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
         if (!_policy.IsAllowedCommand(command))
         {
             var msg = "Policy violation: command '" + Truncate(command, 80) + "' is not in allowed list. Allowed commands: " + string.Join(", ", _policy.AllowedCommands);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
@@ -41,7 +44,7 @@ public sealed class RunCommandTool : ITool
         if (subCommands.Count == 1)
             return await RunSingleCommandAsync(subCommands[0], workingDirectory, ct);
 
-        Console.Error.WriteLine($"[run] Splitting chained command into {subCommands.Count} steps");
+        _logger.LogInformation("Splitting chained command into {Count} steps", subCommands.Count);
         var outputs = new List<string>();
         for (var i = 0; i < subCommands.Count; i++)
         {
@@ -49,7 +52,7 @@ public sealed class RunCommandTool : ITool
             var result = await RunSingleCommandAsync(subCommands[i], workingDirectory, ct);
             sw.Stop();
             var status = result.Success ? "OK" : "FAIL";
-            Console.Error.WriteLine($"[run] Step {i + 1}/{subCommands.Count}: {subCommands[i]} → {status} ({sw.ElapsedMilliseconds}ms)");
+            _logger.LogDebug("Step {Step}/{Total}: {Cmd} → {Status} ({Elapsed}ms)", i + 1, subCommands.Count, subCommands[i], status, sw.ElapsedMilliseconds);
             outputs.Add($"--- Step {i + 1}/{subCommands.Count}: {subCommands[i]} ---\n{result.Output}");
             if (!result.Success)
                 return ToolResult.Fail(string.Join("\n\n", outputs));
@@ -57,7 +60,7 @@ public sealed class RunCommandTool : ITool
         return ToolResult.Ok(string.Join("\n\n", outputs));
     }
 
-    private static async Task<ToolResult> RunSingleCommandAsync(string command, string workingDirectory, CancellationToken ct)
+    private async Task<ToolResult> RunSingleCommandAsync(string command, string workingDirectory, CancellationToken ct)
     {
         var parts = command.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var psi = new ProcessStartInfo
@@ -87,6 +90,7 @@ public sealed class RunCommandTool : ITool
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Command failed: {Command}", command);
             return ToolResult.Fail($"Failed to run command: {ex.Message}");
         }
     }

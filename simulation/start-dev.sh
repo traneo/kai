@@ -134,6 +134,7 @@ CONFIG_JSON=$(cat <<ENDJSON
             "branchPrefix": "kai-code/",
             "autoCommit": true,
             "maxContextTokens": 256000,
+            "logLevel": "debug",
             "agents": {
               "coder": {
                 "endpoint": "${KAI_ENDPOINT}",

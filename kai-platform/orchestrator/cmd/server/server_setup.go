@@ -43,10 +43,17 @@ func startServer(httpPort, configServiceURL string) {
 
 	secMgr := secrets.NewManagerFromEnv(ctx)
 
+	obsEndpoint := os.Getenv("OBSERVABILITY_URL")
+	var obsLogger *sdkgokit.Logger
+	if obsEndpoint != "" {
+		obsLogger = sdkgokit.New(obsEndpoint, "orchestrator")
+		obsLogger.Info("observability forwarding", sdkgokit.F("endpoint", obsEndpoint))
+	}
+
 	gitProvReg := gitprovider.NewRegistry(gitprovider.DefaultPluginDir())
 	gitProvReg.RegisterBuiltins()
 	if err := gitProvReg.Discover(); err != nil {
-		log.Printf("git provider plugin discovery: %v", err)
+		logf(obsLogger, "git provider plugin discovery: %v", err)
 	}
 
 	valRunner := validation.NewRunner()
@@ -65,10 +72,10 @@ func startServer(httpPort, configServiceURL string) {
 
 	pluginMgr := validation.NewPluginManager(validation.DefaultPluginDir())
 	if err := pluginMgr.Discover(); err != nil {
-		log.Printf("plugin discovery: %v", err)
+		logf(obsLogger, "plugin discovery: %v", err)
 	}
 	for _, pg := range pluginMgr.LoadGates() {
-		log.Printf("registering plugin gate: %s", pg.Name())
+		logf(obsLogger, "registering plugin gate: %s", pg.Name())
 		valRunner.Register(pg)
 	}
 
@@ -83,13 +90,6 @@ func startServer(httpPort, configServiceURL string) {
 	defer archiveStore.Close()
 
 	secretStore := api.NewMemorySecretStore()
-
-	obsEndpoint := os.Getenv("OBSERVABILITY_URL")
-	var obsLogger *sdkgokit.Logger
-	if obsEndpoint != "" {
-		obsLogger = sdkgokit.New(obsEndpoint, "orchestrator")
-		log.Printf("observability forwarding to %s", obsEndpoint)
-	}
 
 	srv := api.NewServer(valRunner)
 	srv.SetObsLogger(obsLogger)
@@ -138,7 +138,7 @@ func startServer(httpPort, configServiceURL string) {
 	}
 
 	go func() {
-		log.Printf("gRPC listening on :%s", grpcPort)
+		logf(obsLogger, "gRPC listening on :%s", grpcPort)
 		if err := grpcServer.Serve(grpcLis); err != nil {
 			log.Fatalf("grpc serve: %v", err)
 		}
@@ -147,12 +147,12 @@ func startServer(httpPort, configServiceURL string) {
 	// Block until initial config is loaded from the config service.
 	// Agents can connect via gRPC but missions can't run without config.
 	if configServiceURL != "" {
-		log.Printf("fetching initial config from %s ...", configServiceURL)
-		fetchInitialConfig(configServiceURL, srv, srv.GetCoordinator(), &authCfg.PreSharedToken)
-		log.Print("initial config loaded")
+		logf(obsLogger, "fetching initial config from %s ...", configServiceURL)
+		fetchInitialConfig(configServiceURL, srv, srv.GetCoordinator(), &authCfg.PreSharedToken, obsLogger)
+		logf(obsLogger, "initial config loaded")
 	}
 
-	apiHandler := httpSrv.Handler()
+	apiHandler := loggingMiddleware(obsLogger, httpSrv.Handler())
 
 	startedAt := time.Now()
 
@@ -226,7 +226,7 @@ func startServer(httpPort, configServiceURL string) {
 	}
 
 	go func() {
-		log.Printf("HTTP API listening on :%s", httpPort)
+		logf(obsLogger, "HTTP API listening on :%s", httpPort)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http serve: %v", err)
 		}
@@ -235,7 +235,7 @@ func startServer(httpPort, configServiceURL string) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
-	log.Println("shutting down")
+	logf(obsLogger, "shutting down")
 	if obsLogger != nil {
 		obsLogger.Close()
 	}
@@ -243,7 +243,7 @@ func startServer(httpPort, configServiceURL string) {
 	httpServer.Close()
 }
 
-func fetchInitialConfig(configServiceURL string, srv handlers.ServerIface, coord *coordinator.Coordinator, authToken *string) {
+func fetchInitialConfig(configServiceURL string, srv handlers.ServerIface, coord *coordinator.Coordinator, authToken *string, obsLogger *sdkgokit.Logger) {
 	configURL := configServiceURL + "/api/v1/config"
 	client := &http.Client{Timeout: 10 * time.Second}
 
@@ -262,9 +262,9 @@ func fetchInitialConfig(configServiceURL string, srv handlers.ServerIface, coord
 			body, readErr := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if readErr != nil {
-				log.Printf("read config response: %v, retrying...", readErr)
+				logf(obsLogger, "read config response: %v, retrying...", readErr)
 			} else if applyErr := handlers.ApplyConfigFromBytes(deps, body); applyErr != nil {
-				log.Printf("apply initial config: %v, retrying...", applyErr)
+				logf(obsLogger, "apply initial config: %v, retrying...", applyErr)
 			} else {
 				return
 			}
@@ -273,11 +273,11 @@ func fetchInitialConfig(configServiceURL string, srv handlers.ServerIface, coord
 				resp.Body.Close()
 			}
 			if err != nil {
-				log.Printf("config-service unreachable (%v), retrying in %v...", err, backoff)
+				logf(obsLogger, "config-service unreachable (%v), retrying in %v...", err, backoff)
 			} else if resp.StatusCode == http.StatusNotFound {
-				log.Printf("config-service has no active config yet, retrying in %v...", backoff)
+				logf(obsLogger, "config-service has no active config yet, retrying in %v...", backoff)
 			} else {
-				log.Printf("config-service returned %d, retrying in %v...", resp.StatusCode, backoff)
+				logf(obsLogger, "config-service returned %d, retrying in %v...", resp.StatusCode, backoff)
 			}
 		}
 
@@ -287,6 +287,41 @@ func fetchInitialConfig(configServiceURL string, srv handlers.ServerIface, coord
 			backoff = maxBackoff
 		}
 	}
+}
+
+type logWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *logWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *logWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func loggingMiddleware(logger *sdkgokit.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := &logWriter{ResponseWriter: w, status: http.StatusOK}
+		start := time.Now()
+		next.ServeHTTP(lw, r)
+		elapsed := time.Since(start)
+		if logger != nil {
+			logger.Info("http request",
+				sdkgokit.F("method", r.Method),
+				sdkgokit.F("path", r.URL.Path),
+				sdkgokit.F("status", lw.status),
+				sdkgokit.F("duration_ms", elapsed.Milliseconds()),
+			)
+		} else {
+			log.Printf("%s %s %d (%v)", r.Method, r.URL.Path, lw.status, elapsed)
+		}
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -300,6 +335,14 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func logf(logger *sdkgokit.Logger, format string, args ...any) {
+	if logger != nil {
+		logger.Info(fmt.Sprintf(format, args...))
+	} else {
+		log.Printf(format, args...)
+	}
 }
 
 func getEnv(key, fallback string) string {

@@ -1,4 +1,5 @@
 using kai.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
 
@@ -6,11 +7,13 @@ public sealed class ReadFileTool : ITool
 {
     private readonly PolicyEnforcer _policy;
     private readonly LimitsConfig _limits;
+    private readonly ILogger<ReadFileTool> _logger;
 
-    public ReadFileTool(PolicyEnforcer policy, LimitsConfig limits)
+    public ReadFileTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<ReadFileTool> logger)
     {
         _policy = policy;
         _limits = limits;
+        _logger = logger;
     }
 
     public string Name => "read_file";
@@ -24,7 +27,7 @@ public sealed class ReadFileTool : ITool
         if (!_policy.IsAllowedTool("read_file"))
         {
             var msg = "Policy violation: tool 'read_file' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
@@ -32,7 +35,7 @@ public sealed class ReadFileTool : ITool
         if (!_policy.IsAllowedDir(relativePath, workingDirectory))
         {
             var msg = "Policy violation: path '" + relativePath + "' is not in allowed directories. Allowed dirs: " + string.Join(", ", _policy.AllowedDirs);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 

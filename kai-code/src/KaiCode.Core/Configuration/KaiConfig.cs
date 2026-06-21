@@ -12,6 +12,7 @@ public class kaiConfig
     public List<string> Rules { get; set; } = [];
     public int MaxContextTokens { get; set; } = 32768;
     public LimitsConfig Limits { get; set; } = new();
+    public string? LogLevel { get; set; }
 }
 
 public class AgentConfig

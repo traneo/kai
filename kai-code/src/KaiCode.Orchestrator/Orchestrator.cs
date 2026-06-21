@@ -83,6 +83,7 @@ public sealed class Orchestrator
             a.Name.Equals("coder", StringComparison.OrdinalIgnoreCase));
 
         // --- Coding phase: single pass with the full goal ---
+        _logger.LogInformation("State transition: Idle → Coding");
         State = WorkflowState.Coding;
         await _eventBus.PublishAsync(new PhaseChangedEvent(0, goal, "coding"));
 
@@ -110,12 +111,14 @@ public sealed class Orchestrator
         {
             coderResult = await coder.ExecuteAsync(codeContext, ct);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            _logger.LogError(ex, "LLM connection lost during coding phase");
             return Fail(workingDirectory, "LLM connection lost. Check that Ollama is running.");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            _logger.LogError(ex, "Coding phase timed out");
             return Fail(workingDirectory, "Coding phase timed out");
         }
 
@@ -146,6 +149,7 @@ public sealed class Orchestrator
 
         if (reviewer is not null)
         {
+            _logger.LogInformation("State transition: Coding → Reviewing");
             State = WorkflowState.Reviewing;
             await _eventBus.PublishAsync(new PhaseChangedEvent(1, "Reviewing changes", "reviewing"));
 
@@ -227,6 +231,7 @@ public sealed class Orchestrator
             }
         }
 
+        _logger.LogInformation("State transition: {Phase} → Completed", State);
         State = WorkflowState.Completed;
         _logger.LogInformation("Pipeline completed");
         await _eventBus.PublishAsync(new PipelineCompletedEvent(goal, 1, true));

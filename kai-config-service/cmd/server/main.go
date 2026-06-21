@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/kaiplatform/config/internal/api"
 	"github.com/kaiplatform/config/internal/store"
@@ -32,7 +33,7 @@ func main() {
 	handler := api.New(s)
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/", handler)
+	mux.Handle("/api/v1/", loggingMiddleware(obsLogger, handler))
 
 	addr := ":" + *port
 	log.Printf("config service listening on %s (data: %s)", addr, *dataDir)
@@ -46,6 +47,35 @@ func main() {
 	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+type logWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *logWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func loggingMiddleware(logger *sdkgokit.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := &logWriter{ResponseWriter: w, status: http.StatusOK}
+		start := time.Now()
+		next.ServeHTTP(lw, r)
+		elapsed := time.Since(start)
+		if logger != nil {
+			logger.Info("http request",
+				sdkgokit.F("method", r.Method),
+				sdkgokit.F("path", r.URL.Path),
+				sdkgokit.F("status", lw.status),
+				sdkgokit.F("duration_ms", elapsed.Milliseconds()),
+			)
+		} else {
+			log.Printf("%s %s %d (%v)", r.Method, r.URL.Path, lw.status, elapsed)
+		}
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

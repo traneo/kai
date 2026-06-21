@@ -1,5 +1,6 @@
 using System.Text.Json;
 using kai.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Memory;
 
@@ -7,14 +8,16 @@ public sealed class JsonFileMemory : IProjectMemory
 {
     private readonly string _basePath;
     private readonly LimitsConfig _limits;
+    private readonly ILogger<JsonFileMemory> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public JsonFileMemory(string? basePath = null, LimitsConfig? limits = null)
+    public JsonFileMemory(ILogger<JsonFileMemory> logger, string? basePath = null, LimitsConfig? limits = null)
     {
+        _logger = logger;
         _basePath = basePath ?? Path.Combine(Environment.CurrentDirectory, ".kai");
         _limits = limits ?? new LimitsConfig();
         Directory.CreateDirectory(_basePath);
@@ -30,8 +33,9 @@ public sealed class JsonFileMemory : IProjectMemory
             var json = await File.ReadAllTextAsync(path, ct);
             return JsonSerializer.Deserialize<ProjectMemory>(json, JsonOptions) ?? new ProjectMemory { ProjectHash = projectHash };
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to load memory for {ProjectHash}", projectHash);
             return new ProjectMemory { ProjectHash = projectHash };
         }
     }

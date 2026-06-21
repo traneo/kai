@@ -47,6 +47,7 @@ public sealed class ToolCoderAgent : IAgent
 
     public async Task<AgentResult> ExecuteAsync(AgentContext context, CancellationToken ct = default)
     {
+        _logger.LogInformation("ToolCoderAgent started: {Goal}", context.Goal);
         if (!context.State.TryGetValue("currentTask", out var taskObj) || taskObj is not TaskItem task)
             return AgentResult.Fail("No task provided");
 
@@ -477,7 +478,7 @@ Use the available tools.
         return lineBeforeDone;
     }
 
-    private static string BuildExistingProjectsList(string workingDir)
+    private string BuildExistingProjectsList(string workingDir)
     {
         try
         {
@@ -489,8 +490,9 @@ Use the available tools.
                 ? "\nExisting projects on disk: " + string.Join(", ", dirs)
                 : "";
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to list projects in {Dir}", workingDir);
             return "";
         }
     }

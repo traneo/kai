@@ -50,7 +50,14 @@ public static class ServiceProviderFactory
             {
                 builder.AddKaiObservability(obsUrl, "kai-code");
             }
-            builder.SetMinimumLevel(LogLevel.Information);
+            var level = config.LogLevel?.ToLower() switch
+            {
+                "debug"   => LogLevel.Debug,
+                "warning" => LogLevel.Warning,
+                "error"   => LogLevel.Error,
+                _         => LogLevel.Information,
+            };
+            builder.SetMinimumLevel(level);
         });
 
         services.AddSingleton<IProjectMemory, JsonFileMemory>();

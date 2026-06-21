@@ -1,4 +1,5 @@
 using kai.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
 
@@ -6,12 +7,14 @@ public sealed class WriteFileTool : ITool
 {
     private readonly PolicyEnforcer _policy;
     private readonly LimitsConfig _limits;
+    private readonly ILogger<WriteFileTool> _logger;
     private static readonly string[] _extensions = [".cs", ".json", ".csproj", ".slnx", ".xml", ".yaml", ".yml", ".md", ".txt", ".js", ".ts", ".css", ".html"];
 
-    public WriteFileTool(PolicyEnforcer policy, LimitsConfig limits)
+    public WriteFileTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<WriteFileTool> logger)
     {
         _policy = policy;
         _limits = limits;
+        _logger = logger;
     }
 
     public string Name => "write_file";
@@ -25,14 +28,14 @@ public sealed class WriteFileTool : ITool
         if (!_policy.IsAllowedTool("write_file"))
         {
             var msg = "Policy violation: tool 'write_file' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
         if (!string.IsNullOrWhiteSpace(filePath) && !_policy.IsAllowedDir(filePath, workingDirectory))
         {
             var msg = "Policy violation: path '" + Truncate(filePath, 80) + "' is not in allowed directories. Allowed dirs: " + string.Join(", ", _policy.AllowedDirs);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
@@ -51,7 +54,7 @@ public sealed class WriteFileTool : ITool
         await File.WriteAllTextAsync(fullPath, content, ct);
         if (stripped)
         {
-            Console.Error.WriteLine($"[write_file] Removed markdown code fences from {filePath}");
+            _logger.LogInformation("Removed markdown code fences from {FilePath}", filePath);
             return ToolResult.Ok($"Written {content.Length} bytes to {filePath} (removed markdown fences)");
         }
         return ToolResult.Ok($"Written {content.Length} bytes to {filePath}");

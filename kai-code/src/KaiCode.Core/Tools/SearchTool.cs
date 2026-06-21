@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using kai.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
 
@@ -8,11 +9,13 @@ public sealed class SearchTool : ITool
 {
     private readonly PolicyEnforcer _policy;
     private readonly LimitsConfig _limits;
+    private readonly ILogger<SearchTool> _logger;
 
-    public SearchTool(PolicyEnforcer policy, LimitsConfig limits)
+    public SearchTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<SearchTool> logger)
     {
         _policy = policy;
         _limits = limits;
+        _logger = logger;
     }
 
     public string Name => "search";
@@ -28,7 +31,7 @@ public sealed class SearchTool : ITool
         if (!_policy.IsAllowedTool("search"))
         {
             var msg = "Policy violation: tool 'search' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return Task.FromResult(ToolResult.Fail(msg));
         }
 
@@ -74,6 +77,7 @@ public sealed class SearchTool : ITool
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Search failed for pattern {Pattern}", pattern);
             return Task.FromResult(ToolResult.Fail($"Search error: {ex.Message}"));
         }
     }

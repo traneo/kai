@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavBar } from './NavBar'
+import { RefreshBar } from './RefreshBar'
 import type { Page } from '../types'
 
 interface Props {
@@ -13,10 +14,11 @@ export function Layout({ current, onNavigate, children, title }: Props) {
   return (
     <div className="app-layout">
       <NavBar current={current} onNavigate={onNavigate} />
-      <main className="main-content">
+      <main className="main-content" style={{ paddingBottom: 48 }}>
         {title && <h1 className="page-title">{title}</h1>}
         {children}
       </main>
+      <RefreshBar />
     </div>
   )
 }

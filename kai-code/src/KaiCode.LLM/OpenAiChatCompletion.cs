@@ -167,15 +167,16 @@ public sealed class OpenAiChatCompletion : IChatCompletion, IDisposable
         };
     }
 
-    private static string? TryParseChunk(string data)
+    private string? TryParseChunk(string data)
     {
         try
         {
             var chunk = JsonSerializer.Deserialize<StreamChunk>(data, JsonOptions);
             return chunk?.Choices?[0]?.Delta?.Content;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to parse SSE chunk: {Data}", data);
             return null;
         }
     }

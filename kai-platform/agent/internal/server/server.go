@@ -88,10 +88,14 @@ func (s *AgentServer) AssignMission(mission *kaipb.Mission, stream grpc.ServerSt
 	case <-ctx.Done():
 		return status.Error(codes.Canceled, "mission cancelled")
 	case res := <-resultCh:
+		level := kaipb.LogLevel_LOG_LEVEL_INFO
+		if !res.Success || res.ExitCode != 0 {
+			level = kaipb.LogLevel_LOG_LEVEL_ERROR
+		}
 		report(&kaipb.LogEntry{
 			MissionId: mission.Id,
 			Source:    "system",
-			Level:     kaipb.LogLevel_LOG_LEVEL_INFO,
+			Level:     level,
 			Message:   fmt.Sprintf("mission completed: success=%v exit_code=%d", res.Success, res.ExitCode),
 		})
 

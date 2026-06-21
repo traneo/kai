@@ -1,0 +1,63 @@
+.refresh-bar {
+  position: fixed;
+  bottom: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  z-index: 100;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+.refresh-bar-label {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.refresh-bar-select {
+  padding: 2px 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  outline: none;
+  cursor: pointer;
+}
+
+.refresh-bar-select:focus {
+  border-color: var(--accent-primary);
+}
+
+.refresh-bar-status {
+  color: var(--accent-green);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.refresh-bar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.refresh-bar-toggle:hover {
+  background: var(--bg-hover);
+}

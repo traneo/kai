@@ -18,8 +18,9 @@ public sealed class GitService : IGitService
         {
             return Repository.IsValid(path);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Repository check failed for {Path}", path);
             return false;
         }
     }
@@ -101,7 +102,9 @@ public sealed class GitService : IGitService
             return $"--- a/{c.Path}\n+++ b/{c.Path}\n{patch.Content}";
         });
 
-        return string.Join("\n", patches);
+        var result = string.Join("\n", patches);
+        _logger.LogDebug("Diff computed: {Count} files changed", changes.Count());
+        return result;
     }
 
     public List<string> GetChangedFiles(string path)
@@ -117,6 +120,8 @@ public sealed class GitService : IGitService
         var changes = repo.Diff.Compare<TreeChanges>(parent.Tree, head.Tree);
         if (changes is null) return [];
 
-        return [..changes.Select(c => c.Path)];
+        List<string> files = [..changes.Select(c => c.Path)];
+        _logger.LogDebug("Changed files: {Count} files", files.Count);
+        return files;
     }
 }

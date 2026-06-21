@@ -1,19 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { RunSummary } from '../types'
 import { fetchSummaries } from '../api'
 import { MetricsCard } from './MetricsCard'
 import { formatDuration, formatTime } from '../utils'
+import { useRefresh } from '../RefreshContext'
 
 interface Props {
   onSelectRun: (runId: string) => void
 }
 
 export function RunExplorer({ onSelectRun }: Props) {
+  const { refreshTick } = useRefresh()
   const [summaries, setSummaries] = useState<RunSummary[]>([])
 
-  useEffect(() => {
-    fetchSummaries().then(setSummaries).catch(() => setSummaries([]))
+  const load = useCallback(() => {
+    fetchSummaries().then((d) => setSummaries(d || [])).catch(() => setSummaries([]))
   }, [])
+
+  useEffect(() => { load() }, [load, refreshTick])
 
   if (summaries.length === 0) {
     return <div className="run-empty">No pipeline runs found</div>
@@ -33,8 +37,8 @@ export function RunExplorer({ onSelectRun }: Props) {
           </div>
           <div className="run-card-stats">
             <MetricsCard label="Entries" value={rs.entry_count} />
-            <MetricsCard label="Services" value={rs.services.length} />
-            <MetricsCard label="Steps" value={rs.steps.length} />
+            <MetricsCard label="Services" value={(rs.services || []).length} />
+            <MetricsCard label="Steps" value={(rs.steps || []).length} />
             <MetricsCard label="Started" value={formatTime(rs.start_time)} />
           </div>
         </div>

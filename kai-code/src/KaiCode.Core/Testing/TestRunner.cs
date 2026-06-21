@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Testing;
 
@@ -15,6 +16,13 @@ public class TestResult
 
 public sealed class TestRunner
 {
+    private readonly ILogger<TestRunner> _logger;
+
+    public TestRunner(ILogger<TestRunner> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task<TestResult> RunAsync(string workingDirectory, string command, CancellationToken ct = default)
     {
         var result = new TestResult();
@@ -47,6 +55,7 @@ public sealed class TestRunner
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Test execution failed: {Command}", command);
             result.Passed = false;
             result.Error = ex.Message;
         }

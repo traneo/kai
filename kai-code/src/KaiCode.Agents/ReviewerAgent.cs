@@ -31,6 +31,7 @@ public sealed partial class ReviewerAgent : IAgent
 
     public async Task<AgentResult> ExecuteAsync(AgentContext context, CancellationToken ct = default)
     {
+        _logger.LogInformation("ReviewerAgent started");
         var projectInfo = _analyzer.Analyze(context.WorkingDirectory);
         var diff = _git.GetDiff(context.WorkingDirectory);
 
@@ -167,7 +168,7 @@ Do NOT include preamble or summary. Only output ISSUE lines. If no issues, outpu
         return result;
     }
 
-    private static async Task<string> RunBuildAsync(string workingDirectory, string command, CancellationToken ct)
+    private async Task<string> RunBuildAsync(string workingDirectory, string command, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(command)) return "";
 
@@ -195,6 +196,7 @@ Do NOT include preamble or summary. Only output ISSUE lines. If no issues, outpu
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Build command failed");
             return $"Build command failed: {ex.Message}";
         }
     }

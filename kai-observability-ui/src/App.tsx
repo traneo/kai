@@ -12,6 +12,7 @@ import { PerformanceCharts } from './components/PerformanceCharts'
 import { LogDetail } from './components/LogDetail'
 import type { QueryFilter, LogEntry } from './types'
 import { fetchLog } from './api'
+import { RefreshProvider } from './RefreshContext'
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -96,5 +97,9 @@ export default function App() {
     }
   }
 
-  return renderPage()
+  return (
+    <RefreshProvider>
+      {renderPage()}
+    </RefreshProvider>
+  )
 }

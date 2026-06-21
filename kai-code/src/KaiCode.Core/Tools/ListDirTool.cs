@@ -1,12 +1,16 @@
+using Microsoft.Extensions.Logging;
+
 namespace kai.Core.Tools;
 
 public sealed class ListDirTool : ITool
 {
     private readonly PolicyEnforcer _policy;
+    private readonly ILogger<ListDirTool> _logger;
 
-    public ListDirTool(PolicyEnforcer policy)
+    public ListDirTool(PolicyEnforcer policy, ILogger<ListDirTool> logger)
     {
         _policy = policy;
+        _logger = logger;
     }
 
     public string Name => "list_dir";
@@ -20,14 +24,14 @@ public sealed class ListDirTool : ITool
         if (!_policy.IsAllowedTool("list_dir"))
         {
             var msg = "Policy violation: tool 'list_dir' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
         if (!string.IsNullOrWhiteSpace(relativePath) && !_policy.IsAllowedDir(relativePath, workingDirectory))
         {
             var msg = "Policy violation: path '" + relativePath + "' is not in allowed directories. Allowed dirs: " + string.Join(", ", _policy.AllowedDirs);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 

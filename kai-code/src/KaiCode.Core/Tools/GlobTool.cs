@@ -1,14 +1,17 @@
 using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
 
 public sealed class GlobTool : ITool
 {
     private readonly PolicyEnforcer _policy;
+    private readonly ILogger<GlobTool> _logger;
 
-    public GlobTool(PolicyEnforcer policy)
+    public GlobTool(PolicyEnforcer policy, ILogger<GlobTool> logger)
     {
         _policy = policy;
+        _logger = logger;
     }
 
     public string Name => "glob";
@@ -24,7 +27,7 @@ public sealed class GlobTool : ITool
         if (!_policy.IsAllowedTool("glob"))
         {
             var msg = "Policy violation: tool 'glob' is not allowed. Allowed tools: " + string.Join(", ", _policy.AllowedTools);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
@@ -41,7 +44,7 @@ public sealed class GlobTool : ITool
         if (!string.IsNullOrWhiteSpace(pathPart) && !_policy.IsAllowedDir(pathPart, workingDirectory))
         {
             var msg = "Policy violation: path '" + pathPart + "' is not in allowed directories. Allowed dirs: " + string.Join(", ", _policy.AllowedDirs);
-            Console.Error.WriteLine(msg);
+            _logger.LogWarning("{Msg}", msg);
             return ToolResult.Fail(msg);
         }
 
@@ -63,6 +66,7 @@ public sealed class GlobTool : ITool
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Glob failed for pattern {Pattern}", pattern);
             return ToolResult.Fail($"Glob error: {ex.Message}");
         }
     }

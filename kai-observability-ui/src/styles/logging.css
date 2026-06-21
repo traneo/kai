@@ -1,0 +1,241 @@
+/* Level Badges */
+.level-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.level-badge.level-error {
+  background: var(--level-error-bg);
+  color: var(--accent-red);
+  border: 1px solid var(--level-error-border);
+}
+
+.level-badge.level-warn {
+  background: var(--level-warn-bg);
+  color: var(--accent-yellow);
+  border: 1px solid var(--level-warn-border);
+}
+
+.level-badge.level-info {
+  background: var(--level-info-bg);
+  color: var(--accent-primary);
+  border: 1px solid var(--level-info-border);
+}
+
+.level-badge.level-debug {
+  background: var(--level-debug-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--level-debug-border);
+}
+
+/* Log Table */
+.log-table-container {
+  position: relative;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.log-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+}
+
+.log-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.log-row:hover {
+  background: var(--bg-hover);
+}
+
+.log-row td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-muted);
+  vertical-align: middle;
+}
+
+.log-row.level-error {
+  background: var(--level-error-bg);
+}
+
+.log-row.level-warn {
+  background: var(--level-warn-bg);
+}
+
+.log-cell-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  width: 80px;
+}
+
+.log-cell-level {
+  width: 60px;
+}
+
+.log-cell-service {
+  width: 120px;
+  color: var(--text-secondary);
+}
+
+.log-cell-msg {
+  color: var(--text-primary);
+  max-width: 500px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-cell-run {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pagination-info {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Log Detail Slide-out */
+.log-detail-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 100;
+  animation: fadeIn 0.15s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.log-detail-panel {
+  width: 480px;
+  max-width: 90vw;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  animation: slideIn 0.2s;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.log-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+}
+
+.log-detail-service {
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.log-detail-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+}
+
+.log-detail-close:hover {
+  color: var(--text-primary);
+}
+
+.log-detail-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.log-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-detail-field label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.log-detail-field p {
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.log-detail-field code {
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.log-detail-json {
+  background: var(--bg-elevated);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  max-height: 300px;
+}

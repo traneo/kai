@@ -1,17 +1,20 @@
 using System.Threading.Channels;
 using kai.Core.Events;
+using Microsoft.Extensions.Logging;
 
 namespace kai.Core;
 
 public sealed class InMemoryEventBus : IEventBus, IDisposable
 {
     private readonly Channel<kaiEvent> _channel = Channel.CreateUnbounded<kaiEvent>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly ILogger<InMemoryEventBus> _logger;
     private Func<kaiEvent, CancellationToken, Task>? _handlers;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _processor;
 
-    public InMemoryEventBus()
+    public InMemoryEventBus(ILogger<InMemoryEventBus> logger)
     {
+        _logger = logger;
         _processor = ProcessEventsAsync(_cts.Token);
     }
 
@@ -60,15 +63,15 @@ public sealed class InMemoryEventBus : IEventBus, IDisposable
         }
     }
 
-    private static async Task SafeInvokeAsync(Func<kaiEvent, CancellationToken, Task> handler, kaiEvent @event)
+    private async Task SafeInvokeAsync(Func<kaiEvent, CancellationToken, Task> handler, kaiEvent @event)
     {
         try
         {
             await handler(@event, CancellationToken.None);
         }
-        catch
+        catch (Exception ex)
         {
-            // Logged by the handler itself; never crash the event bus
+            _logger.LogWarning(ex, "Event handler threw an exception");
         }
     }
 
@@ -76,7 +79,7 @@ public sealed class InMemoryEventBus : IEventBus, IDisposable
     {
         _cts.Cancel();
         _channel.Writer.TryComplete();
-        try { _processor.GetAwaiter().GetResult(); } catch { }
+        try { _processor.GetAwaiter().GetResult(); } catch (Exception ex) { _logger.LogWarning(ex, "Event bus processor shutdown error"); }
         _cts.Dispose();
     }
 }

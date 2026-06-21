@@ -17,3 +17,37 @@ export interface GenerateResponse {
 }
 
 export type Page = 'builder' | 'review'
+
+export interface StepPolicy {
+  allowedDirs: string[]
+  agent: string
+  allowedTools: string[]
+  allowedCommands: string[]
+  maxRetries: number
+  timeoutSeconds: number
+  retryDelaySeconds: number
+  retryBackoff: string
+  saveState: boolean
+}
+
+export interface BuilderStep {
+  id: string
+  prompt: string
+  dependsOn: string[]
+  validation: string[]
+  approval: string
+  policy: StepPolicy
+}
+
+export interface PipelineConfig {
+  project: string
+  repoURL: string
+  repoBaseBranch: string
+  repoProvider: string
+  repoTokenRef: string
+  outputType: string
+  branchPrefix: string
+  steps: BuilderStep[]
+}
+
+export const VALIDATION_GATES = ['exit_zero', 'lint', 'typecheck', 'tests', 'diff_review']
