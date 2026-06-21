@@ -25,16 +25,16 @@ kaictl pipeline create pipeline.yaml
 |---------|-------------|
 | `kaictl login <host> <token>` | Save connection info to `~/.kaictl/config.json` |
 | `kaictl status` | Platform health and agent count |
+| `kaictl stats` | Aggregated usage statistics |
+| `kaictl events` | Stream real-time platform events (SSE) |
+| `kaictl audit` | Query audit log |
+| `kaictl agent list` | List connected agents |
 | `kaictl pipeline list` | List pipeline runs |
 | `kaictl pipeline show <id>` | Pipeline detail with step statuses |
 | `kaictl pipeline create <file.yaml>` | Create a pipeline from a YAML definition |
 | `kaictl pipeline cancel <id>` | Cancel a running pipeline |
 | `kaictl pipeline approve <id> <step>` | Approve or reject a blocked step |
 | `kaictl pipeline logs <id> <step>` | Show step conversation logs |
-| `kaictl agent list` | List connected agents |
-| `kaictl stats` | Aggregated usage statistics |
-| `kaictl audit` | Query audit log |
-| `kaictl events` | Stream real-time platform events (SSE) |
 
 All commands accept `--json` for machine-readable output.
 

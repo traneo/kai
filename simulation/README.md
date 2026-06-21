@@ -40,7 +40,7 @@ simulation/
 │
 ├── agent-kai-code/       # container: agent + kai-code CLI
 │   ├── agent             # agent binary
-│   ├── kai-code          # wrapper → kai-code-cli/KaiCode.Cli
+│   ├── kai-code          # wrapper -> kai-code-cli/KaiCode.Cli
 │   ├── kai-code-cli/     # .NET publish output
 │   ├── .env / .env.docs
 │   └── .kai-code/plugins/kai-code/ # kai-code runner plugin
@@ -55,8 +55,18 @@ simulation/
 │   ├── .env / .env.docs
 │   └── .kai-code/plugins/claude-code/
 │
-├── ui/                   # static web UI
+├── ui/                   # platform UI static files
 │   └── dist/
+│
+├── ui-observability/     # observability UI static files
+│   └── dist/
+│
+├── ui-plan-builder/      # plan builder UI static files
+│   └── dist/
+│
+├── observability/        # observability binary
+│
+├── plan-builder/         # plan builder binary
 │
 ├── kaictl                # CLI tool (not containerized)
 └── tmp/                  # runtime data (created by start-dev.sh)
@@ -66,11 +76,16 @@ simulation/
 
 | Target | Description |
 |---|---|
-| `make build` | Compiles all Go binaries, C# agent, plugins, and UI |
+| `make build` | Compiles all Go binaries, C# agent, plugins, and all 3 UIs |
 | `make clean` | Removes all generated artifacts (binaries, plugins, tmp). Preserves `docker/` |
 | `make start-dev` | Build + start all services locally on host (Ctrl+C to stop) |
 | `make env-files` | Generate `.env` (Docker-compatible) and `.env.docs` (reference) per service |
 | `make docker-build` | Build + env-files + `docker compose build` |
+| `make check-prereqs` | Verify Go, Node, npm, dotnet, protoc, jq are installed |
+| `make proto` | Generate protobuf code from `kai-platform/proto/` |
+| `make npm-install` | Install UI dependencies for all 3 UI projects |
+| `make build-ui` | Build all 3 UI applications |
+| `make build-plugins` | Build runner, gate, gitprovider, secrets, and archive plugins |
 
 ## Environment variables
 
@@ -97,6 +112,7 @@ docker run --env-file ./orchestrator/.env kai-orchestrator
 | agent | `AGENT_LISTEN` | :5005N | gRPC bind address |
 | agent | `MISSION_TIMEOUT` | 5m | Per-mission timeout |
 | all | `KAI_PLUGIN_DIR` | `./.kai-code/plugins` | Plugin discovery directory |
+| all | `OBSERVABILITY_URL` | http://localhost:8082 | Centralized logging endpoint |
 
 ## Plugin system
 
@@ -105,13 +121,13 @@ contains subdirectories with `plugin.json` manifests:
 
 ```
 .kai-code/plugins/
-├── kai-code/              → agent-kai-code runner plugin (type: runner)
-├── opencode/              → agent-opencode runner plugin (type: runner)
-├── claude-code/           → agent-claude runner plugin (type: runner)
-├── conventional-commits/  → orchestrator gate plugin (type: gate)
-├── forgejo/               → orchestrator gitprovider plugin (type: gitprovider)
-├── local-fs/              → orchestrator archive plugin (type: archive)
-└── env/                   → orchestrator secrets plugin (type: secrets)
+├── kai-code/              -> agent-kai-code runner plugin (type: runner)
+├── opencode/              -> agent-opencode runner plugin (type: runner)
+├── claude-code/           -> agent-claude runner plugin (type: runner)
+├── conventional-commits/  -> orchestrator gate plugin (type: gate)
+├── forgejo/               -> orchestrator gitprovider plugin (type: gitprovider)
+├── local-fs/              -> orchestrator archive plugin (type: archive)
+└── env/                   -> orchestrator secrets plugin (type: secrets)
 ```
 
 Each container only receives the plugins relevant to its role.
@@ -120,15 +136,19 @@ Each container only receives the plugins relevant to its role.
 
 Runs all services directly on the host (no Docker):
 
-1. Config-service on `:8081`
-2. Orchestrator HTTP `:8080`, gRPC `:50051`
-3. Agents on `:50052`, `:50053`, `:50054`
-4. Web UI (via vite preview) on `:5173`
+1. Observability on `:8082`
+2. Config-service on `:8081`
+3. Orchestrator HTTP `:8080`, gRPC `:50051`
+4. Plan Builder on `:8083`
+5. Agents on `:50052`, `:50053`, `:50054`
+6. Platform UI (via vite preview) on `:5173`
+7. Observability UI (via vite preview) on `:5174`
+8. Plan Builder UI (via vite preview) on `:5175`
 
 After startup, pushes platform config with 3 pools:
-- `local-coder-1` → kai-code runner
-- `local-coder-2` → opencode runner
-- `local-coder-3` → claude-code runner
+- `local-coder-1` -> kai-code runner
+- `local-coder-2` -> opencode runner
+- `local-coder-3` -> claude-code runner
 
 Requires `jq` for API calls.
 

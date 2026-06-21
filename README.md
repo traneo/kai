@@ -35,24 +35,29 @@ Think "CI/CD, but the steps are written and executed by AI."
 [Plan Builder]  ──conversation──>  spec  ──LLM──>  pipeline.yaml
                                                           |
                                                           v
-                                          +-----------------------------+
-                                          |      Orchestrator (Go)      |
-                                          |  parse → DAG → clone repo   |
-                                          |  → dispatch → gates → PR    |
-                                          +----------------+------------+
-                                                           | gRPC
-                                                           v
-                                          +-----------------------------+
-                                          |       Agent Workers         |
-                                          |  +---------+  +---------+   |
-                                          |  |kai-code |  |opencode |   |
-                                          |  | (C#)    |  |  (Go)   |   |
-                                          |  +----+----+  +----+----+   |
-                                          |       |            |        |
-                                          |       v            v        |
-                                          |   LLM provider              |
-                                          |  (Ollama / OpenAI / etc.)   |
-                                          +-----------------------------+
+                                          ┌──────────────────────────────┐
+                                          │      Orchestrator (Go)       │
+                                          │  parse → DAG → clone repo    │
+                                          │  → dispatch → gates → PR     │
+                                          └──────────────┬───────────────┘
+                                                          │ gRPC + HTTP
+                                                          v
+                                          ┌──────────────────────────────┐
+                                          │       Agent Workers          │
+                                          │  ┌────────┐ ┌──────────┐    │
+                                          │  │kai-code │ │ opencode │    │
+                                          │  │  (C#)   │ │   (Go)   │    │
+                                          │  └───┬────┘ └────┬─────┘    │
+                                          │      │           │          │
+                                          │      v           v          │
+                                          │   LLM provider              │
+                                          │  (Ollama / OpenAI / etc.)   │
+                                          └──────────────────────────────┘
+
+                                 Observability (Go) ←── SDK ── All services
+                                       │
+                                       v
+                                 Observability UI (React)
 ```
 
 ---
@@ -66,18 +71,17 @@ The orchestrator and agent worker. Parses YAML into a DAG, dispatches steps to a
 - **Retry with backoff** — linear or exponential, configurable per step
 - **Hot-reload config** — pool config, auth, and backends reload without restart
 
+### kai-platform-ui — Pipeline monitor (React 19)
+Dashboard for tracking pipeline runs, agent status, queue depth, and audit logs. All real-time via SSE.
+
 ### kai-plan-builder — Spec-to-YAML via LLM (Go)
 A conversational agent that walks you through building a complete pipeline spec. No YAML knowledge needed.
 - **Chat interface** — tell it what you want, it asks clarifying questions
 - **Spec editing** — LLM writes a structured spec, you edit it live
 - **YAML generation** — converts the spec to a valid `pipeline.yaml` with retry + self-correction
-- **Visual editor** — review and tweak the generated pipeline in a DAG view
-
-### kai-platform-ui — Pipeline monitor (React 19)
-Dashboard for tracking pipeline runs, agent status, queue depth, and audit logs. All real-time via SSE.
 
 ### kai-plan-builder-ui — Spec builder UI (React 19)
-Split-panel interface: spec editor on the left, LLM chat on the right. Transition to a visual pipeline editor with raw YAML tab for the final review.
+Split-panel interface: spec editor on the left, LLM chat on the right. Transition to a visual pipeline editor with raw YAML tab for final review.
 
 ### kai-code — AI agent runtime (C# .NET)
 The production agent that executes pipeline steps against an LLM. Reads the repo, writes code, runs commands, and reports results back to the orchestrator.
@@ -92,7 +96,7 @@ Draft → publish → activate → rollback lifecycle for platform config. Most 
 Receives structured log entries from all services via the SDK. Query by service, level, run ID, step ID. Live SSE stream. PostgreSQL or in-memory storage.
 
 ### kai-observability-ui — Log viewer (React 19)
-Filter, search, and stream logs in real time. Performance charts, run timelines, error dashboards.
+Filter, search, and stream logs in real time. Performance charts, run timelines, error dashboards, and auto-refresh.
 
 ### kai-observability-sdk — Logging SDKs (Go / TypeScript / C#)
 Non-blocking batched logging with scoped loggers (`WithRunID()`, `WithStepID()`, etc.). Drop-in integration.
@@ -154,11 +158,11 @@ make start-dev      # runs everything locally
 |----------------------|----------------------------|
 | Platform UI          | http://localhost:5173      |
 | Plan Builder UI      | http://localhost:5175      |
+| Observability UI     | http://localhost:5174      |
 | Orchestrator API     | http://localhost:8080      |
-| Plan Builder API     | http://localhost:8083      |
 | Config Service       | http://localhost:8081      |
 | Observability API    | http://localhost:8082      |
-| Observability UI     | http://localhost:5174      |
+| Plan Builder API     | http://localhost:8083      |
 
 Submit a pipeline:
 ```bash
@@ -192,7 +196,10 @@ kai/
 ├── kai-plugins/              # Plugin ecosystem
 ├── simulation/               # Build + dev runner
 ├── examples/                 # Sample pipeline YAMLs
-└── docs/                     # Architecture + schema reference
+├── docs/                     # Architecture + schema reference
+├── image/                    # Project assets
+├── Makefile                  # Top-level build targets
+└── go.work                   # Go workspace
 ```
 
 ---
