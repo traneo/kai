@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using kai.Core.Configuration;
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
@@ -8,13 +9,11 @@ namespace kai.Core.Tools;
 public sealed class SearchTool : ITool
 {
     private readonly PolicyEnforcer _policy;
-    private readonly LimitsConfig _limits;
     private readonly ILogger<SearchTool> _logger;
 
-    public SearchTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<SearchTool> logger)
+    public SearchTool(PolicyEnforcer policy, ILogger<SearchTool> logger)
     {
         _policy = policy;
-        _limits = limits;
         _logger = logger;
     }
 
@@ -39,8 +38,6 @@ public sealed class SearchTool : ITool
         {
             var regex = new Regex(pattern, RegexOptions.Compiled);
             var results = new ConcurrentBag<string>();
-            var maxSize = _limits.Output.SearchFileSizeBytes;
-            var maxResults = _limits.Output.SearchResults;
 
             var files = Directory.EnumerateFiles(workingDirectory, "*", SearchOption.AllDirectories)
                 .Where(f => !f.Contains("node_modules") && !f.Contains(".git") && !f.Contains("bin") && !f.Contains("obj"))
@@ -48,10 +45,6 @@ public sealed class SearchTool : ITool
 
             Parallel.ForEach(files, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = 4 }, file =>
             {
-                var fileInfo = new FileInfo(file);
-                if (fileInfo.Length > maxSize)
-                    return;
-
                 var relPath = Path.GetRelativePath(workingDirectory, file);
                 if (!_policy.IsAllowedDir(relPath, workingDirectory))
                     return;
@@ -73,7 +66,7 @@ public sealed class SearchTool : ITool
             if (sorted.Count == 0)
                 return Task.FromResult(ToolResult.Ok($"No matches for '{pattern}'"));
 
-            return Task.FromResult(ToolResult.Ok($"Found {sorted.Count} matches:\n" + string.Join("\n", sorted.Take(maxResults))));
+            return Task.FromResult(ToolResult.Ok($"Found {sorted.Count} matches:\n" + string.Join("\n", sorted)));
         }
         catch (Exception ex)
         {

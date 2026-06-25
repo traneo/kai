@@ -1,4 +1,5 @@
-using kai.Core.Configuration;
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
@@ -6,23 +7,22 @@ namespace kai.Core.Tools;
 public sealed class ReadFileTool : ITool
 {
     private readonly PolicyEnforcer _policy;
-    private readonly LimitsConfig _limits;
     private readonly ILogger<ReadFileTool> _logger;
 
-    public ReadFileTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<ReadFileTool> logger)
+    public ReadFileTool(PolicyEnforcer policy, ILogger<ReadFileTool> logger)
     {
         _policy = policy;
-        _limits = limits;
         _logger = logger;
     }
 
     public string Name => "read_file";
-    public string Description => "Read the contents of a file. Args: file path relative to project root.";
+    public string Description => "Read a file. Args: path. Optional: --lines N-M to read a range (1-based).";
 
     public async Task<ToolResult> ExecuteAsync(string args, string workingDirectory, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var path = Path.Combine(workingDirectory, args.Trim());
+        var (relativePath, lineRange) = ParseArgs(args);
+        var path = Path.Combine(workingDirectory, relativePath);
 
         if (!_policy.IsAllowedTool("read_file"))
         {
@@ -31,7 +31,6 @@ public sealed class ReadFileTool : ITool
             return ToolResult.Fail(msg);
         }
 
-        var relativePath = args.Trim();
         if (!_policy.IsAllowedDir(relativePath, workingDirectory))
         {
             var msg = "Policy violation: path '" + relativePath + "' is not in allowed directories. Allowed dirs: " + string.Join(", ", _policy.AllowedDirs);
@@ -42,16 +41,48 @@ public sealed class ReadFileTool : ITool
         if (!File.Exists(path))
             return ToolResult.Fail($"File not found: {relativePath}");
 
-        var maxChars = _limits.AgentLoop.ReadFileOutputChars;
-        var content = await File.ReadAllTextAsync(path, ct);
-        var lines = content.Split('\n').Length;
+        var allLines = await File.ReadAllLinesAsync(path, ct);
+        var totalLines = allLines.Length;
 
-        if (content.Length > maxChars)
+        if (lineRange is not null)
         {
-            var truncated = content[..maxChars];
-            return ToolResult.Ok($"{relativePath} ({lines} lines, {content.Length} chars, showing first {maxChars}):\n{truncated}\n... (truncated, {content.Length - maxChars} more chars)");
+            var (start, end) = lineRange.Value;
+            start = Math.Max(0, start);
+            end = Math.Min(totalLines, end);
+            if (start >= totalLines || start >= end)
+                return ToolResult.Fail($"Invalid range: lines {start + 1}-{end} (file has {totalLines} lines)");
+
+            var selected = allLines[start..end];
+            return ToolResult.Ok($"{relativePath} (lines {start + 1}-{end} of {totalLines}):\n{string.Join("\n", selected)}");
         }
 
-        return ToolResult.Ok($"{relativePath} ({lines} lines, {content.Length} chars):\n{content}");
+        var header = $"{relativePath} ({totalLines} lines):\n";
+        return ToolResult.Ok(header + string.Join("\n", allLines));
+    }
+
+    private static (string Path, (int Start, int End)? LineRange) ParseArgs(string args)
+    {
+        var trimmed = args.Trim();
+        var linesIdx = trimmed.LastIndexOf(" --lines ");
+        if (linesIdx < 0)
+            return (trimmed, null);
+
+        var path = trimmed[..linesIdx].Trim();
+        var rangeStr = trimmed[(linesIdx + 9)..].Trim();
+        var parts = rangeStr.Split('-');
+
+        if (parts.Length != 2)
+            return (trimmed, null);
+
+        var hasStart = int.TryParse(parts[0], out var start);
+        var hasEnd = int.TryParse(parts[1], out var end);
+
+        if (!hasStart && !hasEnd)
+            return (trimmed, null);
+
+        if (!hasStart) start = 1;
+        if (!hasEnd) end = int.MaxValue;
+
+        return (path, (start > 0 ? start - 1 : 0, end));
     }
 }

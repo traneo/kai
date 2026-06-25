@@ -197,9 +197,7 @@ kai/
 ├── simulation/               # Build + dev runner
 ├── examples/                 # Sample pipeline YAMLs
 ├── docs/                     # Architecture + schema reference
-├── image/                    # Project assets
-├── Makefile                  # Top-level build targets
-└── go.work                   # Go workspace
+└── image/                    # Project assets
 ```
 
 ---
@@ -207,3 +205,5 @@ kai/
 ## License
 
 MIT
+
+

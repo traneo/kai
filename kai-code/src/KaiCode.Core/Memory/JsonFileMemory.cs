@@ -1,5 +1,7 @@
 using System.Text.Json;
+using kai.Abstractions.Memory;
 using kai.Core.Configuration;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Memory;

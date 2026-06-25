@@ -1,3 +1,5 @@
+using kai.Models;
+
 namespace kai.Core.Language;
 
 public sealed class LanguageDetector

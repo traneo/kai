@@ -1,4 +1,4 @@
-namespace kai.Core.Memory;
+namespace kai.Models;
 
 public class ProjectMemory
 {

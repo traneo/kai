@@ -1,6 +1,6 @@
-using kai.Core.Configuration;
+using kai.Models;
 
-namespace kai.LLM;
+namespace kai.Abstractions.LLM;
 
 public interface IChatCompletion
 {

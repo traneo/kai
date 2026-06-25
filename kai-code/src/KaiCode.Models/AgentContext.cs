@@ -1,12 +1,4 @@
-using kai.Core.Models;
-
-namespace kai.Core.Abstractions;
-
-public interface IAgent
-{
-    string Name { get; }
-    Task<AgentResult> ExecuteAsync(AgentContext context, CancellationToken ct = default);
-}
+namespace kai.Models;
 
 public class AgentContext
 {

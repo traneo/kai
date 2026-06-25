@@ -1,4 +1,6 @@
-namespace kai.Core.Memory;
+using kai.Models;
+
+namespace kai.Abstractions.Memory;
 
 public interface IProjectMemory
 {

@@ -1,6 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\KaiCode.Abstractions\KaiCode.Abstractions.csproj" />
+    <ProjectReference Include="..\KaiCode.Models\KaiCode.Models.csproj" />
     <ProjectReference Include="..\KaiCode.Core\KaiCode.Core.csproj" />
     <ProjectReference Include="..\KaiCode.LLM\KaiCode.LLM.csproj" />
     <ProjectReference Include="..\KaiCode.Orchestrator\KaiCode.Orchestrator.csproj" />

@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using kai.Abstractions.LLM;
 using kai.Core.Configuration;
+using kai.Models;
 
 namespace kai.LLM;
 
@@ -25,9 +27,9 @@ public sealed class OpenAiChatCompletion : IChatCompletion, IDisposable
     public OpenAiChatCompletion(ILogger<OpenAiChatCompletion> logger, LimitsConfig limits)
     {
         _logger = logger;
-        _maxRetries = limits.Llm.MaxTokens > 0 ? limits.Retries.LlmApiRetries : 3;
+        _maxRetries = 3;
         _maxTokens = limits.Llm.MaxTokens;
-        _retryDelays = limits.Retries.LlmRetryDelaySeconds.Select(s => TimeSpan.FromSeconds(s)).ToArray();
+        _retryDelays = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(10)];
         _http = new HttpClient();
 
         _logger.LogInformation("Chat client initialized");

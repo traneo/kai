@@ -119,12 +119,12 @@ steps:
       # Optional. Delay between retries in seconds.
       # Default: 5.
 
-      retry_backoff: linear
+      retry_backoff: ""
       # Optional. Backoff strategy between retries.
-      # Allowed values: linear | exponential
-      #   linear      — fixed delay of retry_delay_seconds
+      # Allowed values: "" | exponential
+      #   ""          — fixed delay of retry_delay_seconds (linear)
       #   exponential — delay doubles each retry (capped at 5 minutes)
-      # Default: linear.
+      # Default: "" (linear).
 
       save_state: false
       # Optional. Whether to save agent workspace state between retries.

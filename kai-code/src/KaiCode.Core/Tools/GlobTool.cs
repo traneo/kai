@@ -1,3 +1,5 @@
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Logging;
 
@@ -59,10 +61,21 @@ public sealed class GlobTool : ITool
                     .OrderBy(f => f)
                     .ToList(), ct);
 
+            files = files.Where(f => !f.Contains("node_modules") && !f.Contains("bin/") && !f.Contains("obj/") && !f.Contains(".git/")).ToList();
+
             if (files.Count == 0)
                 return ToolResult.Ok($"No files matching '{pattern}'");
 
-            return ToolResult.Ok($"Found {files.Count} files:\n" + string.Join("\n", files));
+            var grouped = files
+                .GroupBy(f => Path.GetDirectoryName(f)?.Replace('\\', '/') ?? "")
+                .OrderBy(g => g.Key)
+                .Select(g =>
+                {
+                    var dir = string.IsNullOrEmpty(g.Key) ? "." : g.Key;
+                    return $"  {dir}/: {string.Join(", ", g.Select(Path.GetFileName))}";
+                });
+
+            return ToolResult.Ok($"Found {files.Count} files:\n" + string.Join("\n", grouped));
         }
         catch (Exception ex)
         {

@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/KaiCode.Abstractions/KaiCode.Abstractions.csproj" />
+    <Project Path="src/KaiCode.Enums/KaiCode.Enums.csproj" />
+    <Project Path="src/KaiCode.Models/KaiCode.Models.csproj" />
     <Project Path="src/KaiCode.Agents/KaiCode.Agents.csproj" />
     <Project Path="src/KaiCode.Cli/KaiCode.Cli.csproj" />
     <Project Path="src/KaiCode.Core/KaiCode.Core.csproj" />

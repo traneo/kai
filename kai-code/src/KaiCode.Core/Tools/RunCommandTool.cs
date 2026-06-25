@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;

@@ -36,7 +36,7 @@ public static class InitCommand
             Console.WriteLine();
             Console.WriteLine("Edit the file to configure:");
             Console.WriteLine($"  language:  {config.Language ?? "(auto-detect)"} (C#, TypeScript, Python, Go, Rust, Java, or leave empty)");
-            Console.WriteLine("  agents:   configure endpoint, model, apiKey for each agent (coder, tester, reviewer)");
+            Console.WriteLine("  agents:   configure endpoint, model, apiKey for the coder agent");
         });
     }
 }

@@ -4,26 +4,29 @@ using KaiObservability.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using kai.Core;
-using kai.Core.Abstractions;
+using kai.Abstractions;
+using kai.Abstractions.LLM;
+using kai.Abstractions.Memory;
+using kai.Abstractions.Tools;
 using kai.Core.Analysis;
+using kai.Core.Compression;
 using kai.Core.Configuration;
-using kai.Core.Events;
-using kai.Core.Gating;
 using kai.Core.Language;
 using kai.Core.Memory;
 using kai.Core.Tools;
-using kai.Git;
-using kai.LLM;
+using kai.Abstractions.Git;
+using kai.Models;
 using kai.Orchestrator;
 using kai.Agents;
+using kai.Git;
+using kai.LLM;
 using System.Text.Json;
 
 namespace kai.Cli;
 
 public static class ServiceProviderFactory
 {
-    public static ServiceProvider Create(kaiConfig config, PolicyConfig? policy = null, IEventBus? eventBus = null, GateService? gateService = null)
+    public static ServiceProvider Create(kaiConfig config, PolicyConfig? policy = null)
     {
         var services = new ServiceCollection();
 
@@ -69,6 +72,7 @@ public static class ServiceProviderFactory
         });
         services.AddSingleton<IChatCompletion, OpenAiChatCompletion>();
         services.AddSingleton<IGitService, GitService>();
+        services.AddSingleton<ContextCompressor>();
         services.AddSingleton<kai.Orchestrator.Orchestrator>();
 
         services.AddSingleton<ITool, ReadFileTool>();
@@ -77,17 +81,6 @@ public static class ServiceProviderFactory
         services.AddSingleton<ITool, GlobTool>();
         services.AddSingleton<ITool, SearchTool>();
         services.AddTransient<IAgent, ToolCoderAgent>();
-        services.AddTransient<IAgent, ReviewerAgent>();
-
-        if (eventBus is not null)
-            services.AddSingleton<IEventBus>(eventBus);
-        else
-            services.AddSingleton<IEventBus, InMemoryEventBus>();
-
-        if (gateService is not null)
-            services.AddSingleton(gateService);
-        else
-            services.AddSingleton<GateService>();
 
         return services.BuildServiceProvider();
     }

@@ -1,3 +1,5 @@
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
@@ -50,11 +52,21 @@ public sealed class ListDirTool : ITool
                 .OrderBy(f => f.IsDir ? 0 : 1)
                 .ThenBy(f => f.Name)
                 .Select(f => f.IsDir ? $"{f.Name}/" : f.Name)
+                .Where(i => !i.Contains("node_modules") && !i.Contains("bin/") && !i.Contains("obj/") && !i.Contains(".git/"))
                 .ToList(), ct);
 
-        return ToolResult.Ok(
-            items.Count > 0
-                ? string.Join("\n", items)
-                : "(empty directory)");
+        if (items.Count == 0)
+            return ToolResult.Ok("(empty directory)");
+
+        var dirs = items.Where(i => i.EndsWith('/')).ToList();
+        var plainFiles = items.Where(i => !i.EndsWith('/')).ToList();
+
+        var parts = new List<string>();
+        if (dirs.Count > 0)
+            parts.Add("dirs: " + string.Join(", ", dirs));
+        if (plainFiles.Count > 0)
+            parts.Add("files: " + string.Join(", ", plainFiles));
+
+        return ToolResult.Ok(string.Join("\n", parts));
     }
 }

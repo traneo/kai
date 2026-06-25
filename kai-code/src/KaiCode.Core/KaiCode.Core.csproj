@@ -11,4 +11,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\KaiCode.Abstractions\KaiCode.Abstractions.csproj" />
+    <ProjectReference Include="..\KaiCode.Models\KaiCode.Models.csproj" />
+  </ItemGroup>
+
 </Project>

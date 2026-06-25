@@ -1,12 +1,9 @@
-namespace kai.Orchestrator;
+namespace kai.Enums;
 
 public enum WorkflowState
 {
     Idle,
-    Planning,
     Coding,
-    Testing,
-    Reviewing,
     Completed,
     Failed
 }

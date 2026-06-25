@@ -1,13 +1,16 @@
+#define KAI_CW_DUMP   // Uncomment to dump context window to /tmp/kai-code.cw before each LLM call
+
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using kai.Core.Abstractions;
+using kai.Abstractions;
+using kai.Abstractions.LLM;
+using kai.Abstractions.Tools;
 using kai.Core.Analysis;
+using kai.Core.Compression;
 using kai.Core.Configuration;
-using kai.Core.Events;
 using kai.Core.Memory;
-using kai.Core.Models;
 using kai.Core.Tools;
-using kai.LLM;
+using kai.Models;
 
 namespace kai.Agents;
 
@@ -18,9 +21,9 @@ public sealed class ToolCoderAgent : IAgent
     private readonly IEnumerable<ITool> _tools;
     private readonly ILogger<ToolCoderAgent> _logger;
     private readonly int _maxContextTokens;
-    private readonly IEventBus _eventBus;
     private readonly ModelOptions? _modelOptions;
     private readonly LimitsConfig _limits;
+    private readonly ContextCompressor _compressor;
     private readonly PolicyEnforcer _policy;
 
     public string Name => "coder";
@@ -30,17 +33,17 @@ public sealed class ToolCoderAgent : IAgent
         ProjectAnalyzer analyzer,
         IEnumerable<ITool> tools,
         ILogger<ToolCoderAgent> logger,
-        IEventBus eventBus,
         kaiConfig config,
+        ContextCompressor compressor,
         PolicyEnforcer policy)
     {
         _chat = chat;
         _analyzer = analyzer;
         _tools = tools;
         _logger = logger;
-        _eventBus = eventBus;
         _maxContextTokens = config.MaxContextTokens;
         _limits = config.Limits;
+        _compressor = compressor;
         _policy = policy;
         _modelOptions = config.Agents.GetValueOrDefault("coder")?.ToModelOptions();
     }
@@ -49,7 +52,10 @@ public sealed class ToolCoderAgent : IAgent
     {
         _logger.LogInformation("ToolCoderAgent started: {Goal}", context.Goal);
         if (!context.State.TryGetValue("currentTask", out var taskObj) || taskObj is not TaskItem task)
+        {
+            _logger.LogError("Agent abort: no task in context");
             return AgentResult.Fail("No task provided");
+        }
 
         var projectInfo = context.State.TryGetValue("projectInfo", out var piObj) && piObj is ProjectInfo pi
             ? pi
@@ -69,18 +75,12 @@ public sealed class ToolCoderAgent : IAgent
             ? "\nDirectory structure:\n" + string.Join("\n", projectInfo.DirectoryStructure.Select(d => $"  {d}/"))
             : "";
 
-        var projectMap = projectInfo.ProjectMap is not null
-            ? $"\n{projectInfo.ProjectMap}"
-            : "";
-
         var memorySection = BuildMemorySection(context);
         var existingProjects = BuildExistingProjectsList(context.WorkingDirectory);
 
         var systemPrompt = $"""
-You are a senior software engineer working on a {projectInfo.Language.Name} project ({projectInfo.ProjectType}).
-Project conventions: {string.Join(", ", projectInfo.Conventions)}
+You are a senior software engineer working on a {projectInfo.Language.Name} project.
 {structure}
-{projectMap}
 
 You have access to these tools:
 
@@ -89,9 +89,11 @@ You have access to these tools:
 Output format:
   TOOL: tool_name | arguments
 
-For write_file ONLY, put the path after the pipe, then the file content on the NEXT line (no blank line between path and content):
+For write_file, wrap content in a markdown code fence:
   TOOL: write_file | src/File.cs
+  ```csharp
   public record Product(string Name, decimal Price);
+  ```
 
 For all other tools, everything after the pipe is the single-line argument:
   TOOL: run | go build ./...
@@ -102,9 +104,11 @@ For all other tools, everything after the pipe is the single-line argument:
 CRITICAL RULES:
 - One TOOL per response. Never append "DONE:" behind a TOOL line.
 - When a tool returns SUCCESS, move forward — do NOT re-run the same command with different wrappers.
+- glob and list_dir exclude node_modules/, bin/, obj/, and .git/ directories. Use `run | ls` to inspect those.
 - Avoid re-running commands that already succeeded.
 - Before scaffolding (go mod init, mkdir, etc.), verify the target doesn't already exist using `glob` or `list_dir`.
 - When the task is complete, output only: DONE: summary of what was done
+- Write_file content goes inside a markdown code fence (```). Only fenced content is written.
 
 Guidance:
 - 'read_file' before editing with write_file
@@ -118,8 +122,6 @@ Guidance:
             ("system", systemPrompt),
             ("user", $"""
 Goal: {context.Goal}
-
-Task: {task.Description}
 {existingProjects}
 {memorySection}
 
@@ -135,7 +137,11 @@ Use the available tools.
 
         for (var i = 0; i < _limits.AgentLoop.MaxIterations; i++)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Agent cancelled via token at iteration {Iteration}", i);
+                break;
+            }
 
             if (messages.Count > prevMessageCount)
             {
@@ -149,7 +155,7 @@ Use the available tools.
             }
             prevMessageCount = messages.Count;
 
-            var estimatedTokens = fullContext.Length / 2;
+            var estimatedTokens = fullContext.Length / 4;
 
             if (i > 0 && i % 5 == 0)
             {
@@ -160,18 +166,37 @@ Use the available tools.
 
             if (estimatedTokens > _maxContextTokens * _limits.AgentLoop.CompressThreshold / 100)
             {
-                CompressMessages(messages, readFileCache, _limits.AgentLoop.KeepLastPairs, _limits.Display.SummaryToolLineChars, _limits.Display.SummaryToolsCount);
-                fullContext = string.Join("\n\n", messages.Select(m => $"## {m.Role}\n{m.Content}\n"));
-                prevMessageCount = messages.Count;
-                _logger.LogWarning("Context compressed: {OldTokens}→{NewTokens} tokens (limit {Limit})",
-                    estimatedTokens, fullContext.Length / 4, _maxContextTokens);
+                try
+                {
+                    await _compressor.CompressAsync(messages, readFileCache, ct);
+                    fullContext = string.Join("\n\n", messages.Select(m => $"## {m.Role}\n{m.Content}\n"));
+                    prevMessageCount = messages.Count;
+                    _logger.LogWarning("Context compressed to {NewTokens} tokens",
+                        fullContext.Length / 4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Context compression failed at iteration {Iteration}", i);
+                }
             }
 
+#if KAI_CW_DUMP
+            var cwPath = Environment.GetEnvironmentVariable("KAI_CW_DUMP") ?? "/tmp/kai-code.cw";
+            File.WriteAllText(cwPath, fullContext);
+#endif
             var response = await _chat.CompleteAsync(
                 "You are a tool-using engineer. Be decisive. Output one TOOL: or DONE: per response. Never append DONE: after TOOL:. Never re-run a successful command.",
                 fullContext,
                 _modelOptions,
                 ct);
+
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                _logger.LogWarning("LLM returned empty response at iteration {Iteration}", i);
+                messages.Add(("assistant", ""));
+                messages.Add(("user", "Empty response. Output TOOL: or DONE:."));
+                continue;
+            }
 
             var trimmed = response.Trim();
 
@@ -186,9 +211,7 @@ Use the available tools.
                     if (!buildResult.Success)
                     {
                         _logger.LogWarning("Build failed at DONE, rejecting");
-                        var errorOutput = buildResult.Output.Length > _limits.Output.TestOutputChars
-                            ? buildResult.Output[.._limits.Output.TestOutputChars] + "\n... (truncated)"
-                            : buildResult.Output;
+                        var errorOutput = buildResult.Output;
                         var changedList = filesChanged.Count > 0
                             ? "\nChanged files:\n" + string.Join("\n", filesChanged.Select(f => $"  - {f}"))
                             : "";
@@ -198,13 +221,12 @@ Use the available tools.
                             $"Build command: {projectInfo.BuildCommand}\n" +
                             $"Goal: {context.Goal}{changedList}\n" +
                             $"\n-- Build errors --\n{errorOutput}\n" +
-                            $"\nFix the build errors. Use read_file to inspect each error file, then write_file to fix the code."));
+                            $"\nFix the build errors. Use read_file to inspect each error file, then write_file to fix the code. Check the file syntax to ensure the code is correct for the language."));
                         continue;
                     }
                 }
 
                 _logger.LogInformation("Tool agent done: {Summary}", summary);
-                await _eventBus.PublishAsync(new AgentMessageEvent("assistant", summary));
                 var result = AgentResult.Ok(summary);
                 result.FilesChanged = filesChanged;
                 return result;
@@ -216,6 +238,7 @@ Use the available tools.
 
                 if (calls.Count == 0)
                 {
+                    _logger.LogWarning("LLM response starts with TOOL but no valid calls parsed (iteration {Iteration})", i);
                     messages.Add(("assistant", trimmed));
                     messages.Add(("user", "Invalid format. Use: TOOL: name | args"));
                     continue;
@@ -242,7 +265,6 @@ Use the available tools.
 
                     var sw = Stopwatch.StartNew();
                     _logger.LogInformation("Tool call: {Name} {Args}", toolName, Truncate(toolArgs, _limits.Display.LogChars));
-                    await _eventBus.PublishAsync(new ToolEvent(toolName, Truncate(toolArgs, _limits.Display.EventToolArgsChars), true, null));
                     var toolResult = await tool.ExecuteAsync(toolArgs, context.WorkingDirectory, ct);
                     sw.Stop();
                     results.Add((toolName, toolArgs, toolResult));
@@ -257,14 +279,23 @@ Use the available tools.
 
                     var status = toolResult.Success ? "OK" : "FAIL";
                     _logger.LogInformation("Tool result: {Name} {Status} ({Elapsed}ms){Reason}", toolName, status, sw.ElapsedMilliseconds, toolResult.Success ? "" : $"\n  {Truncate(toolResult.Output, _limits.Display.LogChars)}");
-                    await _eventBus.PublishAsync(new ToolEvent(toolName, Truncate(toolArgs, _limits.Display.EventToolArgsChars), toolResult.Success, Truncate(toolResult.Output, _limits.Display.EventOutputChars)));
-                    await _eventBus.PublishAsync(new AgentMessageEvent("assistant", toolName + " " + Truncate(toolArgs, _limits.Display.EventMessageChars)));
                 }
 
                 var combinedOutput = string.Join("\n", results.Select(r =>
                 {
-                    var max = r.Name.Equals("read_file", StringComparison.OrdinalIgnoreCase) ? _limits.AgentLoop.ReadFileOutputChars : _limits.AgentLoop.ToolOutputChars;
-                    return $"{(r.Result.Success ? "OK" : "FAIL")}\n{Truncate(r.Result.Output, max)}{(r.Result.Success ? "" : GetFailureGuidance(r.Name))}";
+                    var output = r.Result.Output;
+                    var max = _limits.AgentLoop.ToolOutputChars;
+                    string display;
+                    if (output.Length > max && r.Name.Equals("read_file", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var totalLines = output.Count(c => c == '\n');
+                        display = output[..max] + $"\n... ({totalLines} lines total. Use --lines N-M to read specific sections.)";
+                    }
+                    else
+                    {
+                        display = output.Length > max ? output[..max] + "\n... (truncated)" : output;
+                    }
+                    return $"{(r.Result.Success ? "OK" : "FAIL")}\n{display}{(r.Result.Success ? "" : GetFailureGuidance(r.Name))}";
                 }));
 
                 var staleReadFiles = new List<(string Path, int OldIdx)>();
@@ -297,31 +328,15 @@ Use the available tools.
                     }
                 }
 
-                var pairCount = (messages.Count - 2) / 2;
-                if (pairCount > _limits.AgentLoop.MaxToolPairs)
-                {
-                    var remove = (pairCount - _limits.AgentLoop.MaxToolPairs) * 2;
-                    messages.RemoveRange(2, remove);
-                    prevMessageCount = messages.Count;
-                    var stale = new List<string>();
-                    foreach (var k in readFileCache.Keys)
-                    {
-                        var newIdx = readFileCache[k] - remove;
-                        if (newIdx < 2) stale.Add(k);
-                        else readFileCache[k] = newIdx;
-                    }
-                    foreach (var k in stale) readFileCache.Remove(k);
-                    fullContext = string.Join("\n\n", messages.Select(m => $"## {m.Role}\n{m.Content}\n"));
-                }
-
                 continue;
             }
 
+            _logger.LogWarning("LLM response ignored: no TOOL or DONE found (iteration {Iteration}, length {Len})", i, trimmed.Length);
             messages.Add(("assistant", trimmed));
             messages.Add(("user", "Output must start with TOOL: or DONE:. Try again."));
         }
 
-        _logger.LogWarning("Tool agent hit iteration limit");
+        _logger.LogWarning("Tool agent hit iteration limit ({Max})", _limits.AgentLoop.MaxIterations);
         var fallback = AgentResult.Fail($"Hit {_limits.AgentLoop.MaxIterations} iteration limit without completing the task");
         fallback.FilesChanged = filesChanged;
         return fallback;
@@ -520,57 +535,5 @@ Use the available tools.
     private static string Truncate(string text, int max) =>
         text.Length <= max ? text : text[..max] + "\n... (truncated)";
 
-    private static void CompressMessages(List<(string Role, string Content)> messages, Dictionary<string, int> readFileCache, int keepLastPairs, int summaryToolLineChars, int summaryToolsCount)
-    {
-        if (messages.Count <= 4) return;
 
-        var keepFrom = messages.Count - keepLastPairs * 2;
-        if (keepFrom < 2) keepFrom = 2;
-
-        var toCompress = messages.GetRange(2, keepFrom - 2);
-        if (toCompress.Count < 4) return;
-
-        var summary = SummarizeInteractions(toCompress, summaryToolLineChars, summaryToolsCount);
-
-        messages.RemoveRange(2, keepFrom - 2);
-        messages.Insert(2, ("system", summary));
-
-        var stale = new List<string>();
-        foreach (var k in readFileCache.Keys)
-        {
-            var newIdx = readFileCache[k] - (keepFrom - 2) + 1;
-            if (newIdx < 2) stale.Add(k);
-            else readFileCache[k] = newIdx;
-        }
-        foreach (var k in stale) readFileCache.Remove(k);
-    }
-
-    private static string SummarizeInteractions(List<(string Role, string Content)> pairs, int summaryToolLineChars, int summaryToolsCount)
-    {
-        var tools = new List<string>();
-
-        for (var i = 0; i < pairs.Count; i += 2)
-        {
-            if (i + 1 >= pairs.Count) break;
-
-            var assistant = pairs[i].Content;
-
-            var toolLine = assistant.TrimStart();
-            if (toolLine.StartsWith("TOOL:", StringComparison.OrdinalIgnoreCase))
-                toolLine = toolLine[5..].Trim();
-
-            var pipeIdx = toolLine.IndexOf('|');
-            var summary = pipeIdx > 0
-                ? toolLine[..pipeIdx].Trim() + " " + Truncate(toolLine[(pipeIdx + 1)..].Trim(), summaryToolLineChars)
-                : toolLine;
-
-            tools.Add(summary);
-        }
-
-        var toolSummary = tools.Count > summaryToolsCount
-            ? string.Join(", ", tools.Take(summaryToolsCount)) + $", and {tools.Count - summaryToolsCount} more"
-            : string.Join(", ", tools);
-
-        return $"[Context compressed] Previous actions: {toolSummary}.";
-    }
 }

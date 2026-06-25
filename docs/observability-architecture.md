@@ -87,30 +87,30 @@ Every SDK client uses a buffered channel and background goroutine to flush batch
 
 | What | Where | SDK call |
 |------|-------|----------|
-| Agent log entry via `ReportLog` gRPC | `server.go:111` | `obsLogger.Info(msg, source, level, mission_id)` |
-| Agent log entry via `MissionEvent` stream | `coordinator_mission.go:315` | `obsLogger.WithRunID().WithStepID().WithMissionID().Info(msg, source, level)` |
-| Agent `FileChange` via `MissionEvent` | `coordinator_mission.go:330` | `obsLogger.Info("file change", type, path)` |
-| Mission result | `server.go:137` | `obsLogger.WithMissionID().Info("mission result", success, tokens, duration)` |
-| Mission stream error | `server.go:242` | `obsLogger.WithMissionID().Error("mission stream error", err)` |
-| Startup/shutdown | `server_setup.go` | `obsLogger.Info(...)` |
+| Agent log entry via `ReportLog` gRPC | `internal/api/server.go:128-138` | `obsLogger.Info/Warn/Error/Debug(msg, source, mission_id, sequence)` |
+| Agent log entry via `MissionEvent` stream | `internal/api/coordinator/coordinator_mission.go:326-346` | `obsLogger.WithRunID().WithStepID().WithMissionID().Info/Warn/Error/Debug(msg, source, sequence)` |
+| Agent `FileChange` via `MissionEvent` | `internal/api/coordinator/coordinator_mission.go:344-347` | `obsLogger.WithRunID().WithStepID().WithMissionID().Info("file change", type, path)` |
+| Mission result | `internal/api/server.go:158-161` | `obsLogger.WithMissionID().Info("mission result", success, tokens, duration)` |
+| Mission stream error | `internal/api/server.go:267-271` | `obsLogger.WithMissionID().Error("mission stream error", err)` |
+| Startup/shutdown | `cmd/server/main.go` | `obsLogger.Info(...)` |
 
 ### 2. Agent
 
 | What | Where | SDK call |
 |------|-------|----------|
-| Sandbox failure | `main.go:142` | `obsLogger.WithMissionID().Error("sandbox setup failed")` |
-| Unknown runner | `main.go:179` | `obsLogger.WithMissionID().Error("unknown runner")` |
-| Write config failure | `main.go:209` | `obsLogger.WithMissionID().Error("write config failed")` |
-| Runner execution failure | `main.go:243` | `obsLogger.WithMissionID().Error("runner run failed")` |
-| Report result failure | `main.go:64` | `obsLogger.WithMissionID().Error("report result to orchestrator failed")` |
-| Heartbeat failure | `main.go:50` | `obsLogger.Error("heartbeat loop ended")` |
-| Server startup/shutdown | `main.go:81,88` | `obsLogger.Info(...)` |
+| Sandbox failure | `cmd/agent/main.go:146` | `obsLogger.WithMissionID().Error("sandbox setup failed")` |
+| Unknown runner | `cmd/agent/main.go:220` | `obsLogger.WithMissionID().Error("unknown runner")` |
+| Write config failure | `cmd/agent/main.go:250-251` | `obsLogger.WithMissionID().Error("write config failed")` |
+| Runner execution failure | `cmd/agent/main.go:287-288` | `obsLogger.WithMissionID().Error("runner run failed")` |
+| Report result failure | `cmd/agent/main.go:78-80` | `obsLogger.WithMissionID().Error("report result to orchestrator failed")` |
+| Heartbeat failure | `cmd/agent/main.go:60` | `obsLogger.Error("heartbeat loop ended")` |
+| Server startup/shutdown | `cmd/agent/main.go:96-98,107-109` | `obsLogger.Info(...)` |
 
 ### 3. Config Service
 
 | What | Where | SDK call |
 |------|-------|----------|
-| Server startup | `main.go:31` | `obsLogger.Info("config service listening")` |
+| Server startup | `cmd/server/main.go:41` | `obsLogger.Info("config service listening")` |
 
 ### 4. kai-code (C#)
 

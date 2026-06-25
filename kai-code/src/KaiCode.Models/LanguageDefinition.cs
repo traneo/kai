@@ -1,4 +1,4 @@
-namespace kai.Core.Language;
+namespace kai.Models;
 
 public record LanguageDefinition(
     string Name,
@@ -8,11 +8,7 @@ public record LanguageDefinition(
     string LineComment,
     string BlockCommentStart,
     string BlockCommentEnd,
-    string[] CommonConventions,
-    string DetectBuildCommand,
-    string DetectTestCommand,
-    string TestFileSuffix,
-    string TestDirectory
+    string DetectBuildCommand
 );
 
 public static class Languages
@@ -25,11 +21,7 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["file-scoped namespaces", "PascalCase naming", "primary constructors", "XML documentation comments"],
-        DetectBuildCommand: "dotnet build",
-        DetectTestCommand: "dotnet test",
-        TestFileSuffix: "Tests.cs",
-        TestDirectory: "tests"
+        DetectBuildCommand: "dotnet build"
     );
 
     public static readonly LanguageDefinition TypeScript = new(
@@ -40,11 +32,7 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["camelCase variables", "PascalCase types", "ES modules", "async/await"],
-        DetectBuildCommand: "npx tsc --noEmit",
-        DetectTestCommand: "npx vitest run",
-        TestFileSuffix: ".test.ts",
-        TestDirectory: "tests"
+        DetectBuildCommand: "npx tsc --noEmit"
     );
 
     public static readonly LanguageDefinition JavaScript = new(
@@ -55,11 +43,7 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["camelCase variables", "ES modules", "async/await"],
-        DetectBuildCommand: "node --check",
-        DetectTestCommand: "npx vitest run",
-        TestFileSuffix: ".test.js",
-        TestDirectory: "tests"
+        DetectBuildCommand: "node --check"
     );
 
     public static readonly LanguageDefinition Python = new(
@@ -70,11 +54,7 @@ public static class Languages
         LineComment: "#",
         BlockCommentStart: "\"\"\"",
         BlockCommentEnd: "\"\"\"",
-        CommonConventions: ["snake_case naming", "type hints", "PEP 8 style"],
-        DetectBuildCommand: "python -m py_compile",
-        DetectTestCommand: "python -m pytest",
-        TestFileSuffix: "_test.py",
-        TestDirectory: "tests"
+        DetectBuildCommand: "python -m py_compile"
     );
 
     public static readonly LanguageDefinition Go = new(
@@ -85,11 +65,7 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["camelCase exports", "error handling", "interfaces", "defer pattern"],
-        DetectBuildCommand: "go build ./...",
-        DetectTestCommand: "go test ./...",
-        TestFileSuffix: "_test.go",
-        TestDirectory: ""
+        DetectBuildCommand: "go build ./..."
     );
 
     public static readonly LanguageDefinition Rust = new(
@@ -100,11 +76,7 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["snake_case naming", "Result/Option pattern", "trait-based generics"],
-        DetectBuildCommand: "cargo check",
-        DetectTestCommand: "cargo test",
-        TestFileSuffix: "_test.rs",
-        TestDirectory: "tests"
+        DetectBuildCommand: "cargo check"
     );
 
     public static readonly LanguageDefinition Java = new(
@@ -115,26 +87,18 @@ public static class Languages
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: ["PascalCase classes", "camelCase methods", "package-based namespaces", "Javadoc"],
-        DetectBuildCommand: "mvn compile",
-        DetectTestCommand: "mvn test",
-        TestFileSuffix: "Test.java",
-        TestDirectory: "src/test/java"
+        DetectBuildCommand: "mvn compile"
     );
 
     public static readonly LanguageDefinition Unknown = new(
-        Name: "Unknown",
+        Name: "",
         FileExtensions: ["*.*"],
         ConfigFiles: [],
         BuildFiles: [],
         LineComment: "//",
         BlockCommentStart: "/*",
         BlockCommentEnd: "*/",
-        CommonConventions: [],
-        DetectBuildCommand: "",
-        DetectTestCommand: "",
-        TestFileSuffix: "_test",
-        TestDirectory: "tests"
+        DetectBuildCommand: ""
     );
 
     public static LanguageDefinition[] All => [CSharp, TypeScript, JavaScript, Python, Go, Rust, Java];

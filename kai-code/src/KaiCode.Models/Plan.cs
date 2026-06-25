@@ -1,4 +1,4 @@
-namespace kai.Core.Models;
+namespace kai.Models;
 
 public class Plan
 {

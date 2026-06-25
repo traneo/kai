@@ -11,7 +11,11 @@ The platform runs as a set of cooperating services:
 - **Runner plugins** (Go) - small wrapper binaries that wrap the actual AI coding tool (kai-code CLI, opencode, Claude Code)
 - **kai-code CLI** (C# .NET) - the bundled AI agent runtime used by the kai-code runner plugin
 - **Config service** (Go) - versioned platform configuration with hot-reload
-- **Web UI** (React 19 + TypeScript + Vite) - pipeline management, live monitoring, audit, secrets, config
+- **Plan Builder** (Go) - spec-to-YAML via conversational LLM agent
+- **Observability** (Go) - centralized log ingestion, query, and SSE streaming
+- **Platform UI** (React 19 + TypeScript + Vite) - pipeline management, live monitoring, audit, secrets, config
+- **Plan Builder UI** (React 19 + TypeScript + Vite) - spec builder interface
+- **Observability UI** (React 19 + TypeScript + Vite) - log viewer and analysis
 - **kaictl** (Go) - command-line client for the orchestrator
 
 Everything is self-hosted. The whole system is started together via the `simulation/` bundle (`make start-dev`) or `docker compose up` from `simulation/docker/`.
@@ -34,22 +38,24 @@ Everything is self-hosted. The whole system is started together via the `simulat
 +------------------------------------------------------------------+
 |                Orchestrator (Go)                                 |
 |                                                                  |
-|  +-------------+  +-------------+  +-------------------------+  |
-|  |  API Layer  |  | Coordinator |  |   Workflow Engine       |  |
-|  |  (REST +    |--| (pipeline   |--|  (YAML -> DAG -> state) |  |
-|  |   SSE)      |  |  lifecycle) |  |                         |  |
-|  +-------------+  +------+------+  +-------------------------+  |
-|                          |                                      |
-|  +-------------+  +------v------+  +-------------------------+   |
-|  | Agent Pool  |  | Validation  |  |   Git Operations        |   |
-|  | (gRPC)      |--| (gates)     |  |   (clone, commit, push,  |   |
-|  +-------------+  +-------------+  |    PR)                   |   |
-|                                    +-------------------------+   |
-|  +-------------+  +-------------+  +-------------------------+   |
-|  | Audit Log   |  | Secrets     |  |   Versioned Config       |   |
-|  |             |  | Manager     |  |   (hot-reload from       |   |
-|  +-------------+  +-------------+  |    config service)       |   |
-|                                   +-------------------------+   |
+|  +-----------------------------+  +-------------------------+  |
+|  |  API Layer (REST + SSE)     |  |   Workflow Engine       |  |
+|  |  +------------------------+ |  |  (YAML -> DAG -> state) |  |
+|  |  | Coordinator            | |--|                         |  |
+|  |  | (pipeline lifecycle)   | |  +-------------------------+  |
+|  |  +------------------------+ |                              |
+|  +-------------+---------------+                              |
+|                |                                              |
+|  +-------------v------+  +-------------+  +-------------------------+|
+|  |    Agent Pool      |  | Validation   |  |   Git Operations       ||
+|  |    (gRPC)          |  | (gates)      |  |   (clone, commit, push,||
+|  +--------------------+  +-------------+  |    PR)                  ||
+|                                           +-------------------------+|
+|  +-------------+  +-------------+  +-------------------------+       |
+|  | Audit Log   |  | Secrets     |  |   Versioned Config       |      |
+|  |             |  | Manager     |  |   (hot-reload from       |      |
+|  +-------------+  +-------------+  |    config service)       |      |
+|                                   +-------------------------+       |
 +----------------------------------+-------------------------------+
                                    | gRPC
                                    v
@@ -114,13 +120,13 @@ The central control plane. Exposes the HTTP REST API + SSE stream, owns the work
 | Package | Responsibility |
 | --- | --- |
 | `api/` | HTTP REST server + SSE event streaming. Handles pipeline CRUD, agent listing, stats, audit, secrets, approvals. |
-| `coordinator/` | Pipeline lifecycle orchestrator - creates runs, dispatches steps, handles completion / failure. |
+| `api/coordinator/` | Pipeline lifecycle orchestrator - creates runs, dispatches steps, handles completion / failure. |
 | `agentpool/` | Agent connection pool - tracks agent state (idle / busy / unhealthy / offline), health checks, FIFO mission queuing, idle-signal draining, stale agent pruning. |
 | `workflow/` | Pipeline model, YAML parser, DAG dependency resolution, step state machine with retry / backoff. |
 | `validation/` | Pluggable validation gates - `exit_zero`, `lint`, `typecheck`, `tests`, `diff_review`, `approval`, `security_scan`, `license_check`, `breaking_changes`, `code_quality`, plus external plugin gates. |
 | `gitops/` | Git operations - clone, branch, commit, push, with git pathspec exclusions for Kai runtime files. |
 | `gitprovider/` | Git platform abstractions - GitHub, GitLab, Bitbucket built in, plus external provider plugins (e.g. Forgejo). |
-| `audit/` | Event-sourced audit trail - 12 event types stored in PostgreSQL with in-memory fallback. |
+| `audit/` | Event-sourced audit trail - 14 event types stored in PostgreSQL with in-memory fallback. |
 | `auth/` | Authentication - 3 modes: insecure, pre-shared Bearer token, TLS mutual auth. |
 | `cost/` | Token usage and duration tracking per step, per run, per agent (in-memory only). |
 | `secrets/` | Pluggable secrets backends - environment variables, HashiCorp Vault (functional), AWS / Azure / GCP (stubs), plugin, in-memory. |
@@ -163,7 +169,7 @@ A Go worker that connects to the orchestrator via gRPC. When the orchestrator as
 1. Sets up a sandboxed workspace (temp dir + repo clone if a repo is configured).
  2. Resolves the runner plugin by name (default `kai-code`, can be overridden via the step's `policy.runner`).
 3. Invokes the plugin binary, which spawns and supervises the actual AI coding tool.
-4. Streams stdout / stderr / file changes back to the orchestrator as log entries.
+4. Streams logs and file changes back to the orchestrator in real time via the gRPC `MissionEvent` stream (dedicated `LogEntry` and `FileChange` event types).
 5. Returns the final `MissionResult` (success, exit code, archive).
 
 The agent itself does not implement the LLM tool-use loop - that is the runner plugin's and the underlying AI tool's job.
@@ -176,7 +182,7 @@ The agent itself does not implement the LLM tool-use loop - that is the runner p
 | `AGENT_ID` | `local-coder-N` | Agent identity |
 | `AGENT_LISTEN` | `:5005N` | gRPC bind address for orchestrator callbacks |
 | `KAI_PLUGIN_DIR` | `./.kai/plugins` | Where the agent looks up runner plugins |
-| `MISSION_TIMEOUT` | `5m` | Per-mission timeout |
+| `MISSION_TIMEOUT` | `30m` | Per-mission timeout (`5m` in simulation) |
 
 ---
 
@@ -198,8 +204,8 @@ The plugin contract: the agent invokes the plugin with CLI flags describing the 
 
 The C# .NET agent runtime used by the `kai-code-plugin`. Implements the tool-use loop against an LLM (read / write / run / search / glob / list_dir), with:
 
-- Multi-agent roles: `ToolCoderAgent` (coding), `TesterAgent` (test generation), `ReviewerAgent` (code review).
-- Per-agent LLM model configuration (different model, temperature, etc. for coder / tester / reviewer).
+- Single-agent role: `ToolCoderAgent` (coding).
+- Per-agent LLM model configuration (different model, temperature, etc. per agent role).
 - Context compression when estimated tokens exceed 85% of `MaxContextTokens`.
 - Read-file caching (deduplicates repeated reads within a session).
 - Project memory persisted in `.kai-code/` (SHA256-keyed by working dir).
@@ -211,8 +217,11 @@ The C# .NET agent runtime used by the `kai-code-plugin`. Implements the tool-use
 | --- | --- |
 | `KaiCode.Cli` | Entry point, command handling |
 | `KaiCode.Core` | Core abstractions - agent interface, models, configuration, event bus, project memory, tools |
-| `KaiCode.Orchestrator` | Local pipeline orchestration - runs coding -> testing -> review phases sequentially |
-| `KaiCode.Agents` | Agent implementations - `ToolCoderAgent`, `TesterAgent`, `ReviewerAgent` |
+| `KaiCode.Abstractions` | Agent interfaces, models, tool contracts |
+| `KaiCode.Models` | Data models - plans, tasks, results |
+| `KaiCode.Enums` | Shared enumerations - `TaskStatus`, `WorkflowState` |
+| `KaiCode.Orchestrator` | Local pipeline orchestration - runs coding phase sequentially |
+| `KaiCode.Agents` | Agent implementations - `ToolCoderAgent` |
 | `KaiCode.LLM` | LLM abstraction - `IChatCompletion` with `OpenAiChatCompletion` implementation |
 | `KaiCode.Git` | Git operations via LibGit2Sharp |
 
@@ -226,22 +235,28 @@ React 19 + TypeScript + Vite 6. Zero external dependencies (no router, no UI lib
 
 | Component | Purpose |
 | --- | --- |
-| `LandingPage` | Marketing hero page with feature grid |
 | `App` (Dashboard) | Pipeline list with search / status filters, agent list, queue widget, stats bar |
 | `PipelineDetailView` | Pipeline run details - DAG visualization, step cards with gate results, tabbed conversation log (real-time SSE), approve / cancel controls, copy YAML |
-| `PipelineBuilder` | Visual pipeline builder - interactive DAG graph, form-based step editor, validation gate toggles, approval settings, policy section, YAML import / export, live YAML preview |
-| `NewPipeline` | Thin wrapper around `PipelineBuilder` |
 | `AgentDetailPanel` | Modal showing agent health, state, address, uptime, missions completed, current mission |
 | `AuditLog` | Searchable / filterable event log with type and run ID filters, SSE auto-refresh |
 | `SecretsPage` | CRUD interface for managing stored secrets (git tokens, LLM API keys) |
 | `PlatformConfigPage` | Config version management - browse history, create / edit drafts, publish & activate, rollback with hot-reload / restart tracking |
-| `AgentConfigPage` | Per-pool LLM configuration - pool sidebar with live agent indicators, per-role LLM settings, add / remove roles, auto-import live agents |
 | `NavBar` | Tab navigation |
+
+Visual pipeline creation is provided separately by `kai-plan-builder-ui` (port 5175).
 
 **API communication:**
 
-- REST API for CRUD operations (`/api/pipelines`, `/api/agents`, `/api/audit`, `/api/secrets`, `/api/queue`, `/api/stats`, `/api/policies`, `/api/status`, etc.)
-- Server-Sent Events (SSE) for real-time updates (`/api/events`)
+- REST API for all CRUD and action operations:
+  - `GET /api/pipelines` — list runs; `POST /api/pipelines` — create; `GET /api/pipelines/{id}` — detail; `GET /api/pipelines/{id}/yaml` — raw YAML
+  - `POST /api/pipelines/{id}/cancel` — cancel a running pipeline
+  - `POST /api/pipelines/{id}/steps/{step}/approve` — approve / reject a blocked step; `POST /api/pipelines/{id}/steps/{step}/retry` — retry a failed step
+  - `GET /api/pipelines/{id}/steps/{step}/conversation` — step conversation logs
+  - `GET /api/agents` — list connected agents; `GET /api/queue` — pending queue depth
+  - `GET /api/stats` — usage statistics; `GET /api/policies` — pipeline policies
+  - `GET /api/status` — platform health; `GET /api/audit` — audit log
+  - `GET /api/secrets` — list secrets; `POST /api/secrets` — create/update; `DELETE /api/secrets/{name}` — delete
+- Server-Sent Events (SSE) for real-time updates (`GET /api/events`)
 - Config service proxy at `/api/v1/config/*` for platform configuration management
 - Vite dev proxy routes `/api/v1/config` -> config service (port 8081) and `/api` -> orchestrator (port 8080)
 
@@ -410,7 +425,7 @@ steps:
 | **Agent sandboxing** | Per-mission temp directories, restricted by policy (allowed dirs, tools, commands) |
 | **Policy enforcement** | `allowed_dirs`, `allowed_tools`, `allowed_commands` enforced per step by the runner plugin and the underlying tool |
 | **Secrets** | Pluggable backends - env vars, HashiCorp Vault (functional), AWS / Azure / GCP (stubs), plugin, in-memory |
-| **Audit** | Immutable event log - 12 event types with timestamps (PostgreSQL or in-memory) |
+| **Audit** | Immutable event log - 14 event types with timestamps (PostgreSQL or in-memory) |
 | **Diff review gate** | Scans git diff for secrets (API keys, tokens, private keys); enforces max file / size limits |
 
 ---

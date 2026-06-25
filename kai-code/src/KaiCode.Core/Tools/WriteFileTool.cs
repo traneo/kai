@@ -1,4 +1,5 @@
-using kai.Core.Configuration;
+using kai.Abstractions.Tools;
+using kai.Models;
 using Microsoft.Extensions.Logging;
 
 namespace kai.Core.Tools;
@@ -6,14 +7,12 @@ namespace kai.Core.Tools;
 public sealed class WriteFileTool : ITool
 {
     private readonly PolicyEnforcer _policy;
-    private readonly LimitsConfig _limits;
     private readonly ILogger<WriteFileTool> _logger;
     private static readonly string[] _extensions = [".cs", ".json", ".csproj", ".slnx", ".xml", ".yaml", ".yml", ".md", ".txt", ".js", ".ts", ".css", ".html"];
 
-    public WriteFileTool(PolicyEnforcer policy, LimitsConfig limits, ILogger<WriteFileTool> logger)
+    public WriteFileTool(PolicyEnforcer policy, ILogger<WriteFileTool> logger)
     {
         _policy = policy;
-        _limits = limits;
         _logger = logger;
     }
 
@@ -39,7 +38,7 @@ public sealed class WriteFileTool : ITool
             return ToolResult.Fail(msg);
         }
 
-        if (string.IsNullOrWhiteSpace(filePath) || filePath.Contains('<') || filePath.Contains('>') || filePath.Contains('|') || filePath.Length > _limits.Output.FilePathMaxChars)
+        if (string.IsNullOrWhiteSpace(filePath) || filePath.Contains('<') || filePath.Contains('>') || filePath.Contains('|'))
             return ToolResult.Fail($"Invalid file path: '{Truncate(filePath, 80)}'. Must be a simple path like 'src/File.cs'.");
 
         var fullPath = Path.Combine(workingDirectory, filePath);
@@ -63,26 +62,40 @@ public sealed class WriteFileTool : ITool
     private static (string Path, string Content) SplitPathAndContent(string args)
     {
         var newlineIdx = args.IndexOf('\n');
-        if (newlineIdx > 0)
+        if (newlineIdx < 0)
         {
-            var pathPart = args[..newlineIdx].Trim();
-            var content = args[(newlineIdx + 1)..];
-            return (pathPart, content);
+            var text = args.Trim();
+            foreach (var ext in _extensions)
+            {
+                var extIdx = text.IndexOf(ext, StringComparison.OrdinalIgnoreCase);
+                if (extIdx < 0) continue;
+                var endIdx = extIdx + ext.Length;
+                if (endIdx >= text.Length) continue;
+                var rest = text[endIdx..].TrimStart();
+                if (rest.Length > 0)
+                    return (text[..endIdx], rest);
+            }
+            return (text, "");
         }
 
-        var text = args.Trim();
-        foreach (var ext in _extensions)
+        var pathPart = args[..newlineIdx].Trim();
+        var content = args[(newlineIdx + 1)..];
+
+        var fenceStart = content.IndexOf("```");
+        if (fenceStart >= 0)
         {
-            var extIdx = text.IndexOf(ext, StringComparison.OrdinalIgnoreCase);
-            if (extIdx < 0) continue;
-            var endIdx = extIdx + ext.Length;
-            if (endIdx >= text.Length) continue;
-            var rest = text[endIdx..].TrimStart();
-            if (rest.Length > 0)
-                return (text[..endIdx], rest);
+            var afterFence = content[(fenceStart + 3)..].TrimStart();
+            var langNl = afterFence.IndexOf('\n');
+            if (langNl > 0)
+                afterFence = afterFence[(langNl + 1)..];
+
+            var fenceEnd = afterFence.LastIndexOf("```");
+            content = fenceEnd >= 0
+                ? afterFence[..fenceEnd].TrimEnd()
+                : afterFence;
         }
 
-        return (text, "");
+        return (pathPart, content);
     }
 
     private static string StripCodeFences(string content, out bool wasStripped)

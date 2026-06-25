@@ -140,27 +140,13 @@ CONFIG_JSON=$(cat <<ENDJSON
                 "endpoint": "${KAI_ENDPOINT}",
                 "model": "${KAI_MODEL}",
                 "provider": "openai-compatible",
-                "temperature": 0.6, "topP": 0.95, "topK": 25
-              },
-              "reviewer": {
-                "endpoint": "${KAI_ENDPOINT}",
-                "model": "${KAI_MODEL}",
-                "provider": "openai-compatible",
-                "temperature": 0.6, "topP": 0.95, "topK": 25
-              },
-              "tester": {
-                "endpoint": "${KAI_ENDPOINT}",
-                "model": "${KAI_MODEL}",
-                "provider": "openai-compatible",
-                "temperature": 0.6, "topP": 0.95, "topK": 25
+                "temperature": 0.4, "topP": 0.95, "topK": 25
               }
             },
             "limits": {
-              "agentLoop": {"maxIterations": 300, "maxToolPairs": 25, "compressThreshold": 85, "keepLastPairs": 10, "readFileOutputChars": 8000, "toolOutputChars": 600},
-              "retries": {"testFixAttempts": 10, "reviewFixAttempts": 10, "llmApiRetries": 3, "llmRetryDelaySeconds": [1,3,10], "gateTimeoutMinutes": 5},
-              "output": {"searchResults": 50, "searchFileSizeBytes": 1048576, "filePathMaxChars": 200, "testOutputChars": 3000, "goalSummaryChars": 100, "keyFilesCount": 30, "dependenciesCount": 15, "relatedFilesCount": 5, "previewLines": 30, "sourceFilesCount": 30, "conventionSamples": 5, "recentGoalsCount": 3},
-              "llm": {"maxTokens": 4096},
-              "display": {"logChars": 120, "eventToolArgsChars": 200, "eventOutputChars": 300, "eventMessageChars": 100, "summaryToolsCount": 5, "summaryToolLineChars": 80},
+              "agentLoop": {"maxIterations": 1000, "compressThreshold": 70, "toolOutputChars": 2000},
+              "llm": {"maxTokens": 16384},
+              "display": {"logChars": 120},
               "memory": {"maxTaskHistoryEntries": 100}
             }
           }
@@ -218,6 +204,7 @@ done
 # ---- Agents ----
 
 echo "=== Starting agent-kai-code ==="
+KAI_CW_DUMP="$ROOT/tmp/kai-code.cw" \
 KAI_PLUGIN_DIR="$ROOT/agent-kai-code/.kai-code/plugins" \
 	"$ROOT/agent-kai-code/agent" \
 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
@@ -227,25 +214,25 @@ KAI_PLUGIN_DIR="$ROOT/agent-kai-code/.kai-code/plugins" \
 	--timeout "${MISSION_TIMEOUT}" &
 PIDS+=($!)
 
-echo "=== Starting agent-opencode ==="
-KAI_PLUGIN_DIR="$ROOT/agent-opencode/.kai-code/plugins" \
-	"$ROOT/agent-opencode/agent" \
-	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
-	--agent-id "local-coder-2" \
-	--agent-addr "localhost:50053" \
-	--listen ":50053" \
-	--timeout "${MISSION_TIMEOUT}" &
-PIDS+=($!)
+# echo "=== Starting agent-opencode ==="
+# KAI_PLUGIN_DIR="$ROOT/agent-opencode/.kai-code/plugins" \
+# 	"$ROOT/agent-opencode/agent" \
+# 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
+# 	--agent-id "local-coder-2" \
+# 	--agent-addr "localhost:50053" \
+# 	--listen ":50053" \
+# 	--timeout "${MISSION_TIMEOUT}" &
+# PIDS+=($!)
 
-echo "=== Starting agent-claude ==="
-KAI_PLUGIN_DIR="$ROOT/agent-claude/.kai-code/plugins" \
-	"$ROOT/agent-claude/agent" \
-	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
-	--agent-id "local-coder-3" \
-	--agent-addr "localhost:50054" \
-	--listen ":50054" \
-	--timeout "${MISSION_TIMEOUT}" &
-PIDS+=($!)
+# echo "=== Starting agent-claude ==="
+# KAI_PLUGIN_DIR="$ROOT/agent-claude/.kai-code/plugins" \
+# 	"$ROOT/agent-claude/agent" \
+# 	--orchestrator "localhost:${ORCHESTRATOR_PORT}" \
+# 	--agent-id "local-coder-3" \
+# 	--agent-addr "localhost:50054" \
+# 	--listen ":50054" \
+# 	--timeout "${MISSION_TIMEOUT}" &
+# PIDS+=($!)
 
 # ---- UI ----
 
