@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kai — Governance for AI-Generated Code</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #07070d;
+  --bg2: #0d0d1a;
+  --bg3: #14142a;
+  --text: #e2e2f0;
+  --text-dim: #8888a0;
+  --accent: #00d4aa;
+  --accent2: #7c5cfc;
+  --accent-dim: rgba(0,212,170,.15);
+  --border: #1e1e3a;
+  --radius: 12px;
+  --shadow: 0 4px 40px rgba(0,0,0,.5);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(7,7,13,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2rem; height: 56px;
+}
+nav .logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); }
+nav .logo span { color: var(--text); }
+nav a { color: var(--text-dim); text-decoration: none; font-size: .85rem; margin-left: 1.5rem; transition: color .2s; }
+nav a:hover { color: var(--accent); }
+
+section { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 80px 2rem 4rem; }
+section.inner { min-height: auto; padding: 6rem 2rem; }
+.container { max-width: 1100px; width: 100%; }
+
+.reveal { opacity: 0; transform: translateY(40px); transition: opacity .8s ease, transform .8s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.r1 { transition-delay: .1s; }
+.r2 { transition-delay: .2s; }
+.r3 { transition-delay: .3s; }
+.r4 { transition-delay: .4s; }
+.r5 { transition-delay: .5s; }
+
+/* ─── Hero ─── */
+.hero { text-align: center; position: relative; overflow: hidden; }
+.hero::before {
+  content: ''; position: absolute; top: -30%; left: 50%; transform: translateX(-50%);
+  width: 900px; height: 900px;
+  background: radial-gradient(circle, rgba(0,212,170,.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+.hero h1 { font-size: clamp(3rem, 6vw, 5rem); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.hero h1 span { color: var(--accent); }
+.hero .tagline { font-size: clamp(1.1rem, 2.2vw, 1.5rem); color: var(--text-dim); margin-top: 1rem; max-width: 750px; margin-left: auto; margin-right: auto; }
+.hero .tagline strong { color: var(--text); font-weight: 600; }
+.hero .sub { margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+.hero .sub span {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 100px;
+  padding: .5rem 1.2rem; font-size: .85rem; color: var(--text-dim);
+}
+.hero .sub span em { color: var(--accent); font-style: normal; font-weight: 600; }
+.hero .scroll-hint { margin-top: 3rem; color: var(--text-dim); font-size: .85rem; animation: bounce 2s infinite; }
+@keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+
+.section-label { font-size: .8rem; text-transform: uppercase; letter-spacing: .15em; color: var(--accent2); font-weight: 700; margin-bottom: .5rem; }
+h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+h2 + .lede { font-size: 1.05rem; color: var(--text-dim); margin-top: .8rem; max-width: 680px; line-height: 1.6; }
+
+/* ─── PROBLEM: tension cards ─── */
+.tension-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem; }
+@media (max-width: 768px) { .tension-grid { grid-template-columns: 1fr; } }
+.tension-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 2rem; position: relative;
+}
+.tension-card .num {
+  font-size: .75rem; font-weight: 700; color: var(--text-dim); margin-bottom: .5rem;
+}
+.tension-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: .6rem; }
+.tension-card .reality { font-size: .9rem; color: var(--text-dim); line-height: 1.5; }
+.tension-card .gap {
+  margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: .6rem;
+}
+.tension-card .gap .arrow { color: #ef4444; font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
+.tension-card .gap p { font-size: .88rem; color: var(--accent); font-weight: 500; }
+.tension-card:hover { transform: translateY(-2px); transition: .3s; box-shadow: var(--shadow); }
+
+/* ─── SOLUTION ─── */
+.solution-intro {
+  background: linear-gradient(135deg, rgba(0,212,170,.08), rgba(124,92,252,.08));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 2.5rem; margin-top: 2rem;
+}
+.solution-intro h3 { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: .6rem; }
+.solution-intro p { font-size: .95rem; color: var(--text-dim); line-height: 1.6; }
+
+.solution-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+@media (max-width: 768px) { .solution-grid { grid-template-columns: 1fr; } }
+.s-chip {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: .8rem 1rem; font-size: .88rem; display: flex; align-items: center; gap: .7rem;
+}
+.s-chip .icon { color: var(--accent); font-weight: 700; flex-shrink: 0; }
+.s-chip:hover { border-color: var(--accent); transition: .2s; }
+
+/* ─── ARCHITECTURE DIAGRAM ─── */
+.arch { margin-top: 3rem; }
+
+.arch-layer { margin-bottom: 1.5rem; position: relative; }
+
+.arch-layer .layer-label {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text-dim); font-weight: 700; margin-bottom: .6rem; padding-left: .2rem;
+}
+
+.arch-row {
+  display: flex; gap: .8rem; flex-wrap: wrap;
+}
+.arch-row.center { justify-content: center; }
+.arch-row.wide { gap: 1.2rem; }
+
+.arch-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: .8rem 1.2rem; text-align: center; font-size: .82rem; font-weight: 500;
+  position: relative; flex: 0 1 auto;
+}
+.arch-box.sm { padding: .5rem .9rem; font-size: .75rem; }
+.arch-box.lg { padding: 1rem 1.8rem; font-size: .9rem; flex: 0 0 auto; }
+.arch-box .sub {
+  font-size: .7rem; font-weight: 400; color: var(--text-dim); margin-top: .15rem;
+}
+.arch-box.accent { border-color: rgba(0,212,170,.3); background: rgba(0,212,170,.06); }
+.arch-box.accent2 { border-color: rgba(124,92,252,.3); background: rgba(124,92,252,.06); }
+.arch-box.highlight { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.arch-box .badge {
+  display: inline-block; font-size: .6rem; text-transform: uppercase; letter-spacing: .06em;
+  background: var(--bg3); padding: .15em .6em; border-radius: 4px; color: var(--text-dim); margin-top: .3rem;
+}
+
+.arch-group {
+  background: rgba(255,255,255,.02); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1rem; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
+  position: relative;
+}
+.arch-group-label {
+  font-size: .65rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text-dim); font-weight: 600; margin-bottom: .5rem; width: 100%;
+}
+
+.arch-connector {
+  display: flex; align-items: center; justify-content: center; gap: .4rem;
+  padding: .3rem 0; color: var(--text-dim); font-size: .75rem;
+}
+.arch-connector .line { width: 2px; height: 20px; background: var(--border); }
+.arch-connector .line-h { height: 2px; width: 24px; background: var(--border); }
+.arch-connector .arrow-down { color: var(--text-dim); }
+
+/* ─── STEPS ─── */
+.steps { margin-top: 3rem; counter-reset: step; }
+.step {
+  display: flex; gap: 1.2rem; padding: 1.2rem 0;
+  border-bottom: 1px solid var(--border); align-items: flex-start;
+}
+.step:last-child { border: none; }
+.step-num {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .85rem; color: #fff;
+}
+.step-body h4 { font-size: .95rem; font-weight: 600; }
+.step-body p { font-size: .88rem; color: var(--text-dim); margin-top: .2rem; }
+.step-body code { background: var(--bg3); padding: .15em .5em; border-radius: 4px; font-size: .82rem; color: var(--accent); }
+
+/* ─── FEATURES ─── */
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+.feat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 2rem 1.5rem; text-align: center;
+}
+.feat-card:hover { transform: translateY(-3px); transition: .3s; box-shadow: var(--shadow); }
+.feat-card .feat-icon { font-size: 2rem; margin-bottom: .8rem; }
+.feat-card h3 { font-size: 1.05rem; font-weight: 700; }
+.feat-card p { font-size: .85rem; color: var(--text-dim); margin-top: .5rem; }
+
+/* ─── STACK ─── */
+.tech-grid { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; margin-top: 2rem; }
+.tech-badge {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 100px;
+  padding: .6rem 1.5rem; font-size: .9rem; font-weight: 600; transition: .2s;
+}
+.tech-badge:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── CLOSING ─── */
+.closing {
+  background: linear-gradient(135deg, rgba(0,212,170,.06), rgba(124,92,252,.06));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 3rem 2rem; text-align: center; margin-top: 3rem;
+}
+.closing h3 { font-size: 1.4rem; font-weight: 700; margin-bottom: .5rem; }
+.closing p { color: var(--text-dim); font-size: .95rem; }
+.closing .links { margin-top: 1.5rem; display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; }
+.closing .links a { color: var(--accent); text-decoration: none; font-weight: 600; font-size: .9rem; }
+.closing .links a:hover { text-decoration: underline; }
+
+/* ─── SERVICES TABLE ─── */
+.svc-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.svc-table thead th { text-align: left; padding: .6rem .8rem; color: var(--accent); border-bottom: 1px solid var(--border); font-weight: 700; }
+.svc-table tbody td { padding: .6rem .8rem; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+.svc-table tbody tr:hover td { color: var(--text); background: rgba(255,255,255,.02); }
+.svc-table .port { color: var(--accent); font-family: "SF Mono", monospace; }
+
+/* ─── footer ─── */
+footer { text-align: center; padding: 3rem 2rem; border-top: 1px solid var(--border); color: var(--text-dim); font-size: .85rem; }
+footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">kai<span>.</span></div>
+  <div>
+    <a href="#tension">Problem</a>
+    <a href="#solution">Solution</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#features">Features</a>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero" id="top">
+  <div class="container" style="text-align:center">
+    <div class="reveal visible">
+      <h1>kai<span>.</span></h1>
+      <p class="tagline"><strong>The governance platform for AI-generated code.</strong><br>Think CI/CD, but the steps are written and executed by AI.</p>
+      <div class="sub">
+        <span><em>Validation</em> gates</span>
+        <span><em>Human</em> approvals</span>
+        <span><em>Audit</em> trail</span>
+        <span><em>Git</em> automation</span>
+        <span><em>Observability</em> &amp; logs</span>
+      </div>
+      <p class="scroll-hint">↓</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TENSION ─── -->
+<section id="tension">
+  <div class="container">
+    <div class="section-header reveal r1"><span class="section-label">The Challenge</span></div>
+    <h2 class="reveal r2">AI agents write code.<br>Teams need confidence.</h2>
+    <p class="lede reveal r3">AI coding agents are exceptionally capable at generating, modifying, and debugging code. But integrating their output into a team-based software delivery process introduces a new set of challenges.</p>
+
+    <div class="tension-grid">
+      <div class="tension-card reveal r2">
+        <div class="num">01</div>
+        <h3>No automated validation</h3>
+        <p class="reality">The agent's output — lint errors, type failures, broken tests, security issues — goes unchecked unless a human manually reviews every line.</p>
+        <div class="gap"><span class="arrow">→</span><p>Kai runs configurable validation gates after every step: lint, typecheck, tests, diff review, security scan, and custom plugins.</p></div>
+      </div>
+      <div class="tension-card reveal r3">
+        <div class="num">02</div>
+        <h3>Blind trust required</h3>
+        <p class="reality">There's no record of what the AI did, what decisions it made, or what changed from one iteration to the next. Debugging issues means asking the agent to re-explain itself.</p>
+        <div class="gap"><span class="arrow">→</span><p>Every prompt, file change, approval, and result is recorded in an immutable audit trail with 14 event types, queryable via API, CLI, or UI.</p></div>
+      </div>
+      <div class="tension-card reveal r2">
+        <div class="num">03</div>
+        <h3>No human approval gates</h3>
+        <p class="reality">Either the AI pushes directly to production, or a human must sit and watch every step. There's no middle ground for "review before merge."</p>
+        <div class="gap"><span class="arrow">→</span><p>Steps can require human approval before proceeding. Reviewers see the diff, leave feedback, approve, reject, or request changes — all from the pipeline UI or CLI.</p></div>
+      </div>
+      <div class="tension-card reveal r3">
+        <div class="num">04</div>
+        <h3>Disconnected from git workflow</h3>
+        <p class="reality">AI changes land outside the team's existing PR workflow. Branching, committing, reviewing, and merging are manual afterthoughts.</p>
+        <div class="gap"><span class="arrow">→</span><p>Full git lifecycle automation: clone, branch, commit, push, and PR creation. Supports GitHub, GitLab, Bitbucket, and Forgejo.</p></div>
+      </div>
+      <div class="tension-card reveal r3">
+        <div class="num">05</div>
+        <h3>No cross-team observability</h3>
+        <p class="reality">Each developer's AI usage is an island. There's no centralized view of what agents are doing, how they're performing, or where they're failing across the organization.</p>
+        <div class="gap"><span class="arrow">→</span><p>Centralized log ingestion from all services with real-time SSE streaming. Query by service, level, run ID, or step ID. PostgreSQL or in-memory storage.</p></div>
+      </div>
+      <div class="tension-card reveal r2">
+        <div class="num">06</div>
+        <h3>Vendor lock-in</h3>
+        <p class="reality">Committing to one AI provider or one coding agent means your entire workflow depends on their roadmap, pricing, and availability.</p>
+        <div class="gap"><span class="arrow">→</span><p>Pluggable runner architecture: kai-code (C# .NET), opencode, and Claude Code are first-class. Swap backends per pipeline or per step.</p></div>
+      </div>
+    </div>
+
+    <div class="solution-intro reveal r4">
+      <h3>The common thread: governance</h3>
+      <p>Kai doesn't replace AI coding agents. It adds the CI/CD‑inspired layer that production teams need: validation, audit, approvals, git automation, and observability — wrapped around any AI coding tool, in a declarative YAML pipeline format that lives in your repository.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SOLUTION ─── -->
+<section id="solution">
+  <div class="container">
+    <div class="section-header reveal r1"><span class="section-label">How It Works</span></div>
+    <h2 class="reveal r2">AI agents do the work.<br>Kai runs the process.</h2>
+    <p class="lede reveal r3">Define your pipeline as a YAML file. Kai takes care of execution, validation, and delivery — while keeping humans in the loop where it matters.</p>
+
+    <div class="steps" style="margin-top:2rem">
+      <div class="step reveal r2"><div class="step-num">1</div><div class="step-body"><h4>Define</h4><p>A <code>pipeline.yaml</code> declares the project, repository, output mode, and a DAG of steps — each with a prompt, validation gates, approval policy, and per-step LLM configuration.</p></div></div>
+      <div class="step reveal r2"><div class="step-num">2</div><div class="step-body"><h4>Submit</h4><p>Submit via <code>kaictl pipeline create</code>, the Platform UI, or the REST API. The orchestrator parses, validates, and resolves the DAG.</p></div></div>
+      <div class="step reveal r3"><div class="step-num">3</div><div class="step-body"><h4>Dispatch</h4><p>Ready steps are assigned to idle agents via gRPC. Each agent creates a sandboxed workspace, clones the repo, and invokes its runner plugin (kai-code, opencode, or Claude Code).</p></div></div>
+      <div class="step reveal r3"><div class="step-num">4</div><div class="step-body"><h4>Execute</h4><p>The runner executes the step prompt against its LLM — reading files, writing code, running commands. Logs and file changes stream back in real time via the <code>MissionEvent</code> stream.</p></div></div>
+      <div class="step reveal r4"><div class="step-num">5</div><div class="step-body"><h4>Validate</h4><p>On completion, the orchestrator runs the configured validation gates: <code>exit_zero</code>, <code>lint</code>, <code>typecheck</code>, <code>tests</code>, <code>diff_review</code>, <code>security_scan</code>, <code>license_check</code>, and custom plugin gates.</p></div></div>
+      <div class="step reveal r4"><div class="step-num">6</div><div class="step-body"><h4>Approve</h4><p>If the step requires approval, it blocks and presents the diff. A human reviews and approves, rejects, or requests changes via the UI, CLI, or API.</p></div></div>
+      <div class="step reveal r5"><div class="step-num">7</div><div class="step-body"><h4>Deliver</h4><p>After all steps pass: git commit, push the feature branch, and create a pull request. Every event is recorded in the audit trail and streamed to observability.</p></div></div>
+    </div>
+
+    <div class="solution-grid" style="margin-top:2rem">
+      <div class="s-chip reveal r3"><span class="icon">✓</span> Declarative YAML pipelines — version-controlled alongside your code</div>
+      <div class="s-chip reveal r4"><span class="icon">✓</span> Parallel DAG execution — steps run concurrently where dependencies allow</div>
+      <div class="s-chip reveal r3"><span class="icon">✓</span> Retry with backoff — linear or exponential, configurable per step</div>
+      <div class="s-chip reveal r4"><span class="icon">✓</span> Hot-reload config — pool config, auth, backends update without restart</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── SYSTEM ARCHITECTURE ─── -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-header reveal r1"><span class="section-label">Architecture</span></div>
+    <h2 class="reveal r2">Microservices,<br>connected.</h2>
+    <p class="lede reveal r3">Go at the core, C# .NET agents, React 19 UIs — communicating over HTTP, gRPC, and SSE. Each service independently deployable.</p>
+
+    <div class="arch reveal r4">
+
+      <!-- Users -->
+      <div class="arch-layer">
+        <div class="arch-row center">
+          <div class="arch-box lg highlight">
+            Platform UI
+            <div class="badge">React 19 &middot; 5173</div>
+          </div>
+          <div class="arch-box lg" style="border-color:var(--accent2);background:rgba(124,92,252,.06);">
+            kaictl CLI
+            <div class="badge">Go (Cobra)</div>
+          </div>
+          <div class="arch-box lg">
+            REST API
+            <div class="badge">curl / HTTP</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <span style="border-left:2px solid var(--border);height:24px;display:block;"></span>
+        <span style="font-size:.7rem;color:var(--text-dim);">HTTP / SSE</span>
+        <span style="border-left:2px solid var(--border);height:24px;display:block;"></span>
+      </div>
+
+      <!-- Orchestrator -->
+      <div class="arch-layer">
+        <div class="arch-group" style="border-color:rgba(0,212,170,.25);">
+          <div class="arch-group-label">Orchestrator (Go) — port 8080</div>
+          <div class="arch-row wide" style="width:100%;">
+            <div class="arch-box accent sm" style="flex:1;">
+              API Layer
+              <div class="sub">REST + SSE</div>
+            </div>
+            <div class="arch-box accent sm" style="flex:1;">
+              Coordinator
+              <div class="sub">pipeline lifecycle</div>
+            </div>
+            <div class="arch-box accent sm" style="flex:1;">
+              Workflow Engine
+              <div class="sub">YAML → DAG → state</div>
+            </div>
+          </div>
+          <div class="arch-row wide" style="width:100%;margin-top:.4rem;">
+            <div class="arch-box sm" style="flex:1;">
+              Agent Pool
+              <div class="sub">gRPC</div>
+            </div>
+            <div class="arch-box sm" style="flex:1;">
+              Validation
+              <div class="sub">10+ gate types</div>
+            </div>
+            <div class="arch-box sm" style="flex:1;">
+              Git Ops
+              <div class="sub">clone, commit, PR</div>
+            </div>
+            <div class="arch-box sm" style="flex:1;">
+              Audit
+              <div class="sub">14 event types</div>
+            </div>
+            <div class="arch-box sm" style="flex:1;">
+              Secrets
+              <div class="sub">Vault, env, plugins</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <span style="border-left:2px solid var(--border);height:20px;display:block;"></span>
+        <span style="font-size:.7rem;color:var(--text-dim);">gRPC</span>
+        <span style="border-left:2px solid var(--border);height:20px;display:block;"></span>
+      </div>
+
+      <!-- Agent Workers -->
+      <div class="arch-layer">
+        <div class="arch-group" style="border-color:rgba(124,92,252,.25);">
+          <div class="arch-group-label">Agent Workers (Go) — ports 50052+</div>
+          <div class="arch-row center" style="width:100%;">
+            <div class="arch-box accent2 sm">
+              kai-code
+              <div class="sub">C# .NET tool-use loop</div>
+            </div>
+            <div style="color:var(--text-dim);font-size:.7rem;padding:0 .2rem;">+</div>
+            <div class="arch-box accent2 sm">
+              opencode
+              <div class="sub">Go CLI</div>
+            </div>
+            <div style="color:var(--text-dim);font-size:.7rem;padding:0 .2rem;">+</div>
+            <div class="arch-box accent2 sm">
+              Claude Code
+              <div class="sub">CLI</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <span style="border-left:2px solid var(--border);height:20px;display:block;"></span>
+      </div>
+
+      <!-- LLM Provider -->
+      <div class="arch-layer">
+        <div class="arch-row center">
+          <div class="arch-box lg" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.04);">
+            LLM Provider
+            <div class="sub">Ollama &middot; OpenAI &middot; Anthropic &middot; any OpenAI-compatible</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <span style="border-left:2px solid var(--border);height:20px;display:block;"></span>
+      </div>
+
+      <!-- Git Provider -->
+      <div class="arch-layer">
+        <div class="arch-row center">
+          <div class="arch-box lg">
+            Git Provider
+            <div class="sub">GitHub &middot; GitLab &middot; Bitbucket &middot; Forgejo</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- sidecar services -->
+      <div style="margin-top:2rem;border-top:1px solid var(--border);padding-top:1.5rem;">
+        <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);font-weight:600;margin-bottom:.8rem;text-align:center;">Supporting Services</div>
+        <div class="arch-row center">
+          <div class="arch-box sm">
+            Config Service
+            <div class="sub">Go &middot; 8081</div>
+          </div>
+          <div class="arch-box sm">
+            Observability
+            <div class="sub">Go &middot; 8082</div>
+          </div>
+          <div class="arch-box sm">
+            Plan Builder
+            <div class="sub">Go &middot; 8083</div>
+          </div>
+          <div class="arch-box sm">
+            Observability UI
+            <div class="sub">React 19 &middot; 5174</div>
+          </div>
+          <div class="arch-box sm">
+            Plan Builder UI
+            <div class="sub">React 19 &middot; 5175</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FEATURES ─── -->
+<section class="inner" id="features">
+  <div class="container">
+    <div class="section-header reveal r1"><span class="section-label">Capabilities</span></div>
+    <h2 class="reveal r2">What you get out of the box.</h2>
+
+    <div class="features">
+      <div class="feat-card reveal r2">
+        <div class="feat-icon">✅</div>
+        <h3>Validation Gates</h3>
+        <p>Lint, typecheck, tests, diff review, security scan, license check, breaking change detection, and code quality gates. Pluggable for custom checks.</p>
+      </div>
+      <div class="feat-card reveal r2">
+        <div class="feat-icon">👁️</div>
+        <h3>Audit Trail</h3>
+        <p>14 event types covering pipeline lifecycle, step execution, agent assignments, approvals, and system events. Queryable via REST API, CLI, or UI.</p>
+      </div>
+      <div class="feat-card reveal r3">
+        <div class="feat-icon">✋</div>
+        <h3>Human Approvals</h3>
+        <p>Block steps until human sign-off. Review diffs, leave feedback, approve, reject, or request changes. Works from the UI, CLI, or REST API.</p>
+      </div>
+      <div class="feat-card reveal r3">
+        <div class="feat-icon">🔗</div>
+        <h3>Git Integration</h3>
+        <p>Automated clone, branch, commit, push, and PR creation. GitHub, GitLab, Bitbucket, and Forgejo supported via pluggable git provider system.</p>
+      </div>
+      <div class="feat-card reveal r4">
+        <div class="feat-icon">🔀</div>
+        <h3>DAG Scheduling</h3>
+        <p>Static dependency analysis with cycle detection. Steps with no interdependencies execute in parallel. Configurable retry with linear or exponential backoff.</p>
+      </div>
+      <div class="feat-card reveal r4">
+        <div class="feat-icon">📊</div>
+        <h3>Observability</h3>
+        <p>Centralized log ingestion from all services. SSE live stream, per-service filtering, and PostgreSQL or in-memory storage with file dump for debugging.</p>
+      </div>
+      <div class="feat-card reveal r5">
+        <div class="feat-icon">🔌</div>
+        <h3>Pluggable Runners</h3>
+        <p>kai-code (C# .NET), opencode, Claude Code. Swap per step, per pipeline, or per pool. Custom runners are a small Go binary via the plugin system.</p>
+      </div>
+      <div class="feat-card reveal r5">
+        <div class="feat-icon">📝</div>
+        <h3>Plan Builder</h3>
+        <p>Describe your project in plain English. A conversational LLM agent builds the pipeline YAML for you — no need to learn the schema from scratch.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CLOSING ─── -->
+<section class="inner">
+  <div class="container" style="text-align:center">
+    <div class="section-header reveal r1" style="text-align:center"><span class="section-label">Technology</span></div>
+    <h2 class="reveal r2">Built on modern foundations.</h2>
+
+    <div class="tech-grid reveal r3">
+      <span class="tech-badge">Go 1.25</span>
+      <span class="tech-badge">C# .NET 10</span>
+      <span class="tech-badge">React 19</span>
+      <span class="tech-badge">TypeScript</span>
+      <span class="tech-badge">Vite 6</span>
+      <span class="tech-badge">gRPC</span>
+      <span class="tech-badge">Protobuf</span>
+      <span class="tech-badge">PostgreSQL</span>
+      <span class="tech-badge">Docker</span>
+      <span class="tech-badge">SSE</span>
+      <span class="tech-badge">Ollama</span>
+      <span class="tech-badge">OpenAI</span>
+    </div>
+
+    <div class="closing reveal r4">
+      <h3>Governance for AI-generated code.</h3>
+      <p>Self-hosted. Open source (MIT). No cloud dependency.</p>
+      <div class="links">
+        <a href="https://opencode.ai">opencode.ai</a>
+        <a href="docs/architecture.md">Architecture docs</a>
+        <a href="examples/">Pipeline examples</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Kai</strong> — Open source (MIT) &bull; Built for teams that ship with AI.</p>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) entry.target.classList.add('visible');
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+window.addEventListener('scroll', () => {
+  const nav = document.querySelector('nav');
+  nav.style.background = window.scrollY > 50 ? 'rgba(7,7,13,.95)' : 'rgba(7,7,13,.85)';
+});
+</script>
+
+</body>
+</html>
